@@ -129,7 +129,7 @@ export class LockMechanismAccessory {
   constructor(private readonly options: LockAccessoryOptions) {
     const { api, accessory, alias, deviceId } = options;
     this.service =
-      accessory.getServiceById(api.Service.LockMechanism.UUID, deviceId) ??
+      accessory.getServiceById(api.Service.LockMechanism, deviceId) ??
       accessory.addService(api.Service.LockMechanism, alias, deviceId);
     this.controller = new LockController(
       alias,
@@ -205,12 +205,6 @@ export class LockMechanismAccessory {
         transition: 'explicit-jam-report',
       });
     }
-    this.service.updateCharacteristic(
-      this.options.api.Characteristic.StatusFault,
-      label === 'UNKNOWN' || state.online === 'offline' || state.fault
-        ? this.options.api.Characteristic.StatusFault.GENERAL_FAULT
-        : this.options.api.Characteristic.StatusFault.NO_FAULT,
-    );
     this.options.diagnostics.lock({
       event: 'HAP_CURRENT_UPDATED',
       alias: this.options.alias,

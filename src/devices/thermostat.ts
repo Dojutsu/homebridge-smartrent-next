@@ -219,7 +219,7 @@ export class ThermostatAccessory {
       ? accessory.context.temperatureUnit
       : (options.temperatureUnit ?? 'celsius');
     this.service =
-      accessory.getServiceById(api.Service.Thermostat.UUID, deviceId) ??
+      accessory.getServiceById(api.Service.Thermostat, deviceId) ??
       accessory.addService(api.Service.Thermostat, alias, deviceId);
     this.controller = new ThermostatController(
       alias,
@@ -231,7 +231,6 @@ export class ThermostatAccessory {
       () => this.refreshFromState(),
       options.now,
     );
-    this.configureTemperatureProperties();
     this.bindCharacteristics();
     this.refreshFromState();
   }
@@ -267,16 +266,7 @@ export class ThermostatAccessory {
     );
     this.updateTargetTemperature(state);
 
-    const incomplete =
-      state.online === 'offline' ||
-      Boolean(state.fault) ||
-      !this.hasFresh(state, 'current_temp') ||
-      !this.hasFresh(state, 'mode') ||
-      !this.hasFresh(state, 'operating_state');
-    this.service.updateCharacteristic(
-      C.StatusFault,
-      incomplete ? C.StatusFault.GENERAL_FAULT : C.StatusFault.NO_FAULT,
-    );
+    this.configureTemperatureProperties();
   }
 
   private bindCharacteristics(): void {
@@ -411,7 +401,6 @@ export class ThermostatAccessory {
     else if (value === C.FAHRENHEIT) this.unit = 'fahrenheit';
     else throw new Error('Invalid temperature display unit');
     this.options.accessory.context.temperatureUnit = this.unit;
-    this.configureTemperatureProperties();
     this.lastGeneration = -1;
     this.refreshFromState();
   }
@@ -505,10 +494,6 @@ export class ThermostatAccessory {
     });
   }
 
-  private hasFresh(state: DeviceState, attribute: string): boolean {
-    return readAuthoritativeAttribute(state, attribute) !== undefined;
-  }
-
   private fromSmartRentFahrenheit(value: number): number {
     return this.unit === 'celsius'
       ? Math.round((((value - 32) * 5) / 9) * 10) / 10
@@ -536,12 +521,38 @@ export class ThermostatAccessory {
       minStep: celsius ? 0.1 : 1,
     };
     const C = this.options.api.Characteristic;
-    for (const characteristic of [
-      C.TargetTemperature,
-      C.HeatingThresholdTemperature,
-      C.CoolingThresholdTemperature,
-    ]) {
-      this.service.getCharacteristic(characteristic).setProps(props);
+    const values: Array<
+      [WithUUID<new () => Characteristic>, number | undefined]
+    > = [
+      [
+        C.TargetTemperature,
+        this.safeTemperature(() => this.readTargetTemperature()),
+      ],
+      [
+        C.HeatingThresholdTemperature,
+        this.safeTemperature(() => this.readTemperature('heating_setpoint')),
+      ],
+      [
+        C.CoolingThresholdTemperature,
+        this.safeTemperature(() => this.readTemperature('cooling_setpoint')),
+      ],
+    ];
+    for (const [characteristic, value] of values) {
+      if (
+        value !== undefined &&
+        value >= props.minValue &&
+        value <= props.maxValue
+      ) {
+        this.service.getCharacteristic(characteristic).setProps(props);
+      }
+    }
+  }
+
+  private safeTemperature(read: () => number): number | undefined {
+    try {
+      return read();
+    } catch {
+      return undefined;
     }
   }
 }

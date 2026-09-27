@@ -35,7 +35,7 @@ export class LeakSensorAccessory {
     this.attributeName = options.attributeName ?? 'leak';
     const { api, accessory, alias, deviceId } = options;
     this.service =
-      accessory.getServiceById(api.Service.LeakSensor.UUID, deviceId) ??
+      accessory.getServiceById(api.Service.LeakSensor, deviceId) ??
       accessory.addService(api.Service.LeakSensor, alias, deviceId);
     this.service
       .getCharacteristic(api.Characteristic.LeakDetected)

@@ -111,10 +111,7 @@ export class BatteryServiceAdapter {
     if (!this.service) {
       const { accessory, api } = this.options;
       this.service =
-        accessory.getServiceById(
-          api.Service.Battery.UUID,
-          this.serviceSubtype,
-        ) ??
+        accessory.getServiceById(api.Service.Battery, this.serviceSubtype) ??
         accessory.addService(
           api.Service.Battery,
           'Battery',
@@ -127,6 +124,7 @@ export class BatteryServiceAdapter {
         .getCharacteristic(api.Characteristic.StatusLowBattery)
         .onGet(() => this.readLowBattery());
     }
+    if (snapshot.freshness !== 'fresh') return;
     this.service.updateCharacteristic(
       this.options.api.Characteristic.BatteryLevel,
       snapshot.percentage,
@@ -137,24 +135,19 @@ export class BatteryServiceAdapter {
         ? this.options.api.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
         : this.options.api.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL,
     );
-    this.service.updateCharacteristic(
-      this.options.api.Characteristic.StatusFault,
-      snapshot.freshness === 'fresh'
-        ? this.options.api.Characteristic.StatusFault.NO_FAULT
-        : this.options.api.Characteristic.StatusFault.GENERAL_FAULT,
-    );
   }
 
   private readPercentage(): number {
     const snapshot = this.options.model.get();
-    if (snapshot.percentage === undefined)
+    if (snapshot.percentage === undefined || snapshot.freshness !== 'fresh')
       throw new Error('Battery state unavailable');
     return snapshot.percentage;
   }
 
   private readLowBattery(): number {
     const low = this.options.model.isLow();
-    if (low === undefined) throw new Error('Battery state unavailable');
+    if (low === undefined || this.options.model.get().freshness !== 'fresh')
+      throw new Error('Battery state unavailable');
     return low
       ? this.options.api.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
       : this.options.api.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;

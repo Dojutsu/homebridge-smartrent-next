@@ -73,10 +73,8 @@ describe('BatteryModel', () => {
 
     model.markUnavailable();
     battery.adapter.refresh();
-    await expect(level.handleGetRequest()).resolves.toBe(55);
-    expect(
-      battery.service.getCharacteristic(hap.Characteristic.StatusFault).value,
-    ).toBe(hap.Characteristic.StatusFault.GENERAL_FAULT);
+    expect(level.value).toBe(55);
+    await expect(level.handleGetRequest()).rejects.toBe(-70402);
 
     model.observe(17, 'rest', 2_000);
     battery.adapter.refresh();

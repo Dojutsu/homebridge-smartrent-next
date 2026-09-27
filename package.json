@@ -1,0 +1,53 @@
+{
+  "name": "@dojutsu/homebridge-smartrent-next",
+  "version": "0.1.0",
+  "description": "Focused SmartRent Homebridge platform for Apple Home, Siri, and Apple Watch",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "config.schema.json", "README.md", "LICENSE", "docs"],
+  "keywords": ["homebridge-plugin", "smartrent", "homekit", "apple-home"],
+  "engines": {
+    "node": ">=20.19.0 <25",
+    "homebridge": "^1.8.0 || ^2.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "lint": "eslint src test --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --exclude test/integration/**",
+    "test:integration": "vitest run test/integration",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build"
+  },
+  "dependencies": {
+    "otplib": "^13.5.0",
+    "ws": "^8.18.0"
+  },
+  "peerDependencies": {
+    "homebridge": "^1.8.0 || ^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/ws": "^8.5.13",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.26.0",
+    "@typescript-eslint/parser": "^8.26.0",
+    "prettier": "^3.5.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9",
+    "homebridge": "^1.8.0"
+  },
+  "homebridge": {
+    "pluginAlias": "SmartRentNext",
+    "pluginType": "platform",
+    "singular": true,
+    "strictConfig": true,
+    "configSchema": "config.schema.json"
+  }
+}

@@ -1,0 +1,34 @@
+# State model and ordering
+
+## Observation envelope
+
+Each device has an envelope containing:
+
+- normalized `reported` value, if any;
+- `requested` target and command generation, if a user command is pending;
+- source (`rest`, `websocket`, `cached`, or `none`), local receive time, and optional SmartRent timestamp;
+- active connection epoch and local generation;
+- freshness (`fresh`, `stale`, `unknown`), online (`online`, `offline`, `unknown`), and fault code;
+- last-known values retained only as history, never silently promoted to current after restart or loss of authority.
+
+## Fences
+
+Every REST read captures `{connectionEpoch, generationAtStart}`. Apply the result only if both still match. Every socket belongs to one connection epoch; ignore events from retired sockets. Increment the local generation for every accepted authoritative event, status change, and requested command. Duplicate events are idempotent. A parseable older SmartRent timestamp is rejected; absent or contradictory timestamps do not establish ordering.
+
+If equal timestamps carry conflicting values, mark the state unknown and request one bounded authoritative read. Do not let an older REST request overwrite a newer event, and do not let command acceptance overwrite any report.
+
+## Command semantics
+
+Record a command target with a new command generation. Send one write. HTTP success records acceptance only. A matching authoritative report resolves the pending command. A contradictory report becomes the current reported state and is logged as a conflict. A timeout is ambiguous and leaves current state unknown/unresolved. No command is automatically retried.
+
+## Lock truth table
+
+| SmartRent observation | HAP CurrentLockState |
+|---|---|
+| explicit `locked=true` | `SECURED` |
+| explicit `locked=false` | `UNSECURED` |
+| explicit tested jam value | `JAMMED` |
+| absent, null, malformed, offline, or unresolved | `UNKNOWN` |
+
+`LockTargetState` is always separate; it has no unknown enum and is never used as current state.
+

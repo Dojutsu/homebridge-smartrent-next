@@ -1,0 +1,25 @@
+{
+  "pluginAlias": "SmartRentNext",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "SmartRent Next is under development. Do not configure live credentials until the approved validation phase.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "platform": { "type": "string", "const": "SmartRentNext" },
+      "unitName": { "type": "string", "title": "Unit name" },
+      "devices": {
+        "type": "object",
+        "properties": {
+          "lock": { "type": "string", "title": "Front Door device ID" },
+          "thermostat": { "type": "string", "title": "Thermostat device ID" },
+          "washerLeak": { "type": "string", "title": "Washer leak sensor ID" },
+          "kitchenLeak": { "type": "string", "title": "Kitchen leak sensor ID" }
+        }
+      }
+    },
+    "required": ["platform"]
+  },
+  "form": null
+}
+

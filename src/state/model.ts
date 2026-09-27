@@ -410,6 +410,35 @@ export class StateReducer {
     return state;
   }
 
+  markDeviceUnknown(deviceId: string, fault: FaultCode): DeviceState {
+    const prior = this.getDevice(deviceId);
+    const generation = prior.generation + 1;
+    const attributes = Object.fromEntries(
+      Object.entries(prior.attributes).map(([name]) => [
+        name,
+        {
+          value: undefined,
+          source: 'none' as const,
+          receivedAt: undefined,
+          smartrentTimestamp: undefined,
+          connectionEpoch: this.epoch,
+          generation,
+          freshness: 'unknown' as const,
+        },
+      ]),
+    );
+    const state: DeviceState = {
+      ...prior,
+      attributes,
+      online: 'unknown',
+      fault,
+      connectionEpoch: this.epoch,
+      generation,
+    };
+    this.states.set(deviceId, state);
+    return state;
+  }
+
   private makeUnknown(
     prior: DeviceState,
     online: OnlineState,

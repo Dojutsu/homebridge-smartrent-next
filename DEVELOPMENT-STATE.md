@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Transport abstraction, authoritative state reducer, native HomeKit LockMechanism adapter, and redacted lock diagnostics are implemented and unit-tested. Reconnect, leak, battery, thermostat, dynamic platform, and fake-server layers remain in development. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
+Transport abstraction, authoritative state reducer, native HomeKit LockMechanism adapter, redacted lock diagnostics, and bounded connection supervisor are implemented and unit-tested. Leak, battery, thermostat, dynamic platform, and fake-server layers remain in development. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
 
 ## Scope
 
@@ -13,8 +13,8 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Repository history is the source of truth for implemented behavior.
 - Protocol facts from the earlier research implementation are documented as `VERIFIED` (code evidence), `INFERRED`, or `UNKNOWN`; they are not an official SmartRent API contract.
 - Unit and integration tests use synthetic devices and mocks/local servers only.
-- `feat: add SmartRent transport abstraction`, `feat: add authoritative state reducer`, and `feat: add HomeKit lock support` are the current implementation commits; their checked-in source is ground truth.
-- Current unit result: 24 tests pass on the local Node 20.19.2 runtime. CI has not run because the new GitHub repository is not yet available.
+- `feat: add SmartRent transport abstraction`, `feat: add authoritative state reducer`, and `feat: add HomeKit lock support` are committed; the reconnect supervisor is ready for its focused commit.
+- Current unit result: 28 tests pass on the local Node 20.19.2 runtime. CI has not run because the new GitHub repository is not yet available.
 
 ## Open gates
 

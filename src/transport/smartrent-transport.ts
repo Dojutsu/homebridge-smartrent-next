@@ -184,7 +184,15 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
 
   async connect(): Promise<number> {
     await this.ensureAuthenticated();
-    const response = await this.authRequest(`${this.authBaseUrl}/api/v1/authentication/websocket-token`, 'POST');
+    const tokenUrl = `${this.authBaseUrl}/api/v1/authentication/websocket-token`;
+    let response: Response;
+    try {
+      response = await this.authRequest(tokenUrl, 'POST');
+    } catch (error) {
+      if (!(error instanceof SmartRentTransportError) || error.status !== 401) throw error;
+      await this.refreshOrReauthenticate();
+      response = await this.authRequest(tokenUrl, 'POST');
+    }
     const data: unknown = await response.json();
     const token = isObject(data) && typeof data.token === 'string' ? data.token : undefined;
     if (!token) throw new SmartRentTransportError('WebSocket token response was malformed');

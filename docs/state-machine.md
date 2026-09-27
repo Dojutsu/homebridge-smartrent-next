@@ -19,6 +19,8 @@ If equal timestamps carry conflicting values, mark the state unknown and request
 
 The reducer implements device generations and connection epochs. A REST request captures both values; a report arriving before the REST response invalidates the response. Timestamped event IDs are deduplicated, older event timestamps are discarded, and conflicting values at an equal timestamp become unknown. Starting a newer connection epoch invalidates reports from older sockets. Transport connectivity loss clears current authority while retaining no value as current.
 
+The supervisor waits for channel-join acknowledgements before its one-per-device read. It captures the REST fence immediately before each request. REST failures mark that device unknown without polling again; socket loss is recovered with bounded jittered backoff. Heartbeat acknowledgement failure causes reconnect, while late callbacks from older epochs are ignored.
+
 ## Command semantics
 
 Record a command target with a new command generation. Send one write. HTTP success records acceptance only. A matching authoritative report resolves the pending command. A contradictory report becomes the current reported state and is logged as a conflict. A timeout is ambiguous and leaves current state unknown/unresolved. No command is automatically retried.

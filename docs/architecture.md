@@ -33,11 +33,10 @@ Apple Home / Siri / Apple Watch
 
 ## Startup and recovery
 
-Restore cached accessories and make HAP responsive before cloud authentication. Authenticate and discover devices asynchronously. Subscribe before requesting a baseline snapshot. A newer event or command generation fences off an older REST response. After a channel rejoin is acknowledged, make one state read for that device; never run recurring lock-state polls.
+Restore cached accessories and make HAP responsive before cloud authentication. Authenticate and discover devices asynchronously. Subscribe before requesting a baseline snapshot. A newer event or command generation fences off an older REST response. After all configured channel joins are acknowledged for a connection epoch, make one state read for each device; never run recurring lock-state polls. One supervisor owns the Phoenix socket, heartbeat, and jittered exponential reconnect.
 
 The process remains alive through authentication, REST, or WebSocket failures. Reconnect is bounded and jittered. No HomeKit getter waits for SmartRent. HAP availability and SmartRent availability are separate states.
 
 ## Implementation policy
 
 The new TypeScript client is authored in this repository behind `SmartRentTransport`. The prior GPL-3.0-or-later integration is protocol evidence, not copied source. No SmartRent request is made by tests except to a loopback fake server.
-

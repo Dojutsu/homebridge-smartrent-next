@@ -156,7 +156,12 @@ export class ConnectionSupervisor {
         fence,
         {
           online: device.online,
-          attributes: device.attributes,
+          attributes: {
+            ...device.attributes,
+            ...(device.batteryLevel === undefined
+              ? {}
+              : { battery_level: device.batteryLevel }),
+          },
           ...(device.updatedAt ? { smartrentTimestamp: device.updatedAt } : {}),
         },
         (this.options.now ?? Date.now)(),

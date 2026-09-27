@@ -33,3 +33,5 @@ Record a command target with a new command generation. Send one write. HTTP succ
 | absent, null, malformed, offline, or unresolved | `UNKNOWN`            |
 
 `LockTargetState` is always separate; it has no unknown enum and is never used as current state.
+
+The first device adapter uses the native HAP `LockMechanism` service and `LockCurrentState` / `LockTargetState` characteristics. Getters return immediately from the reducer cache. An accepted PATCH leaves current state unchanged. A command error/timeout marks that lock's current observation unknown and reports a HAP communication fault; the write is not retried. Jam maps only when a fresh, explicit boolean `jammed=true` observation exists. The real SmartRent jam payload remains unknown and must be validated before relying on this mapping.

@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Fresh repository foundation and implementation. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
+Transport abstraction and authoritative state reducer are implemented and unit-tested. Device, HomeKit, reconnect, and fake-server layers remain in development. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
 
 ## Scope
 
@@ -13,6 +13,8 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Repository history is the source of truth for implemented behavior.
 - Protocol facts from the earlier research implementation are documented as `VERIFIED` (code evidence), `INFERRED`, or `UNKNOWN`; they are not an official SmartRent API contract.
 - Unit and integration tests use synthetic devices and mocks/local servers only.
+- `feat: add SmartRent transport abstraction` and `feat: add authoritative state reducer` are the current implementation commits; their checked-in source is ground truth.
+- Current unit result: 15 tests pass on the local Node 20.19.2 runtime. CI has not run because the new GitHub repository is not yet available.
 
 ## Open gates
 
@@ -20,4 +22,3 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Validate Apple Home's presentation of HAP `UNKNOWN`, offline faults, and leak/battery read failures on test accessories before a production migration.
 - Rehearse HomeKit identity continuity using cloned Homebridge storage before considering any migration.
 - Test Apple Watch Siri locally, remotely through the home hub, after restart/reconnect, and during a multi-day soak before any release recommendation.
-

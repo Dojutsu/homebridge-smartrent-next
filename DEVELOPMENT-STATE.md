@@ -14,8 +14,9 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Protocol facts from the earlier research implementation are documented as `VERIFIED` (code evidence), `INFERRED`, or `UNKNOWN`; they are not an official SmartRent API contract.
 - Unit and integration tests use synthetic devices and mocks/local servers only.
 - The transport, reducer, lock, reconnect, leak, battery, thermostat, HAP adapter fixes, and Homebridge platform each have focused commits. The fake-server integration suite is the final implementation commit in this phase.
+- TypeScript builds from `src` into the package root `dist` layout. The npm metadata entry points now match `dist/index.js` and `dist/index.d.ts`; a smoke test validates the real packed tarball and imports the scoped Homebridge registration entry without instantiating a bridge.
 - Repository: `Dojutsu/homebridge-smartrent-next`, with the original project foundation at `4174b86e81e6cfb0b114989f24a51a660bb603c1`. The initial Node 20/22/24 CI run passed formatting, ESLint, type-check, 65 unit tests, 8 fake-server integration tests, and build.
-- This validation-tool change passes local formatting, ESLint, type-check, 74 unit tests, 9 fake-server integration tests, and build on Node 20.19.2. GitHub Actions has not run for this change.
+- The read-only validation commit passes local formatting, ESLint, type-check, 74 unit tests, 9 fake-server integration tests, and build on Node 20.19.2. The packaging correction also passes those checks plus packed-package load smoke on Node 20.19.2. GitHub CI is still required for the exact packaging commit before real-account validation.
 - `npm run validate:account` was run as a preflight only and stopped before authentication because the runtime environment did not contain `SMARTRENT_VALIDATION_MODE` or account/device mapping variables. No authentication or SmartRent request has been attempted.
 
 ## Open gates
@@ -24,8 +25,5 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Validate Apple Home's presentation of HAP `UNKNOWN`, offline faults, and leak/battery read failures on test accessories before a production migration.
 - Rehearse HomeKit identity continuity using cloned Homebridge storage before considering any migration.
 - Test Apple Watch Siri locally, remotely through the home hub, after restart/reconnect, and during a multi-day soak before any release recommendation.
-- Verify the read-only validator change in GitHub Actions before any live request.
+- Verify the exact packaging-correction commit in GitHub Actions on Node 20/22/24 before any live request. The workflow's push filter targets `main`, so manually dispatch it for the validation branch.
 - Securely provide the required runtime variables and explicit device IDs to the validator process before live protocol validation. Never send their values in chat or store them in the repository.
-- Validate Apple Home's presentation of HAP `UNKNOWN`, offline faults, and leak/battery read failures on test accessories before a production migration.
-- Rehearse HomeKit identity continuity using cloned Homebridge storage before considering any migration.
-- Test Apple Watch Siri locally, remotely through the home hub, after restart/reconnect, and during a multi-day soak before any release recommendation.

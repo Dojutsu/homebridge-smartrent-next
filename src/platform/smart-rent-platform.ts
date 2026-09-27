@@ -21,7 +21,7 @@ import type {
   SmartRentTransport,
 } from '../transport/types.js';
 
-export const PLUGIN_NAME = 'homebridge-smartrent-next';
+export const PLUGIN_NAME = '@dojutsu/homebridge-smartrent-next';
 export const PLATFORM_NAME = 'SmartRentNext';
 
 export type SmartRentRole =

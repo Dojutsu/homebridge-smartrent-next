@@ -24,16 +24,17 @@
     "homebridge": "^1.8.0 || ^2.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.json",
     "clean": "rimraf dist",
-    "lint": "eslint src test --max-warnings 0",
+    "lint": "eslint src test scripts --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --exclude test/integration/**",
     "test:integration": "vitest run test/integration",
-    "validate:account": "npm run build && node dist/src/validation/account-cli.js",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build"
+    "validate:account": "npm run build && node dist/validation/account-cli.js",
+    "test:package": "node scripts/package-smoke-test.mjs",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build && npm run test:package"
   },
   "dependencies": {
     "otplib": "^13.5.0",

@@ -9,10 +9,18 @@ export const DEVICE_ID_ENV = {
 
 export type ValidationAlias = keyof typeof DEVICE_ID_ENV;
 
-export interface AccountValidationConfig {
+export interface DiscoveryOnlyValidationConfig {
+  mode: 'DISCOVERY_ONLY';
+}
+
+export interface ReadOnlyAccountValidationConfig {
+  mode: 'READ_ONLY';
   deviceIds: Record<ValidationAlias, string>;
   observeSeconds: number;
 }
+
+export type AccountValidationConfig =
+  DiscoveryOnlyValidationConfig | ReadOnlyAccountValidationConfig;
 
 export class ValidationConfigurationError extends Error {
   constructor(message: string) {
@@ -50,24 +58,31 @@ export function loadAccountValidationConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): AccountValidationConfig {
   const missing: string[] = [];
-  if (environment.SMARTRENT_VALIDATION_MODE !== 'READ_ONLY') {
-    missing.push('SMARTRENT_VALIDATION_MODE=READ_ONLY');
+  const mode = environment.SMARTRENT_VALIDATION_MODE;
+  if (mode !== 'DISCOVERY_ONLY' && mode !== 'READ_ONLY') {
+    missing.push(
+      'SMARTRENT_VALIDATION_MODE must be DISCOVERY_ONLY or READ_ONLY',
+    );
   }
   if (!environment.SMARTRENT_EMAIL) missing.push('SMARTRENT_EMAIL');
   if (!environment.SMARTRENT_PASSWORD) missing.push('SMARTRENT_PASSWORD');
   const deviceIds = {} as Record<ValidationAlias, string>;
-  for (const [alias, variable] of Object.entries(DEVICE_ID_ENV) as Array<
-    [ValidationAlias, (typeof DEVICE_ID_ENV)[ValidationAlias]]
-  >) {
-    const id = environment[variable];
-    if (!id) missing.push(variable);
-    else deviceIds[alias] = id;
+  if (mode === 'READ_ONLY') {
+    for (const [alias, variable] of Object.entries(DEVICE_ID_ENV) as Array<
+      [ValidationAlias, (typeof DEVICE_ID_ENV)[ValidationAlias]]
+    >) {
+      const id = environment[variable];
+      if (!id) missing.push(variable);
+      else deviceIds[alias] = id;
+    }
   }
   if (missing.length > 0) {
     throw new ValidationConfigurationError(
       `Missing or invalid runtime variables: ${missing.join(', ')}. Values are never echoed.`,
     );
   }
+
+  if (mode === 'DISCOVERY_ONLY') return { mode };
 
   const ids = Object.values(deviceIds);
   if (new Set(ids).size !== ids.length) {
@@ -88,5 +103,5 @@ export function loadAccountValidationConfig(
     );
   }
 
-  return { deviceIds, observeSeconds };
+  return { mode: 'READ_ONLY', deviceIds, observeSeconds };
 }

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SmartRentDevice } from '../../src/transport/types.js';
-import type { AccountValidationConfig } from '../../src/validation/config.js';
+import type { ReadOnlyAccountValidationConfig } from '../../src/validation/config.js';
 import {
   DeviceMappingError,
   mapValidationDevices,
 } from '../../src/validation/device-mapping.js';
 
-const config: AccountValidationConfig = {
+const config: ReadOnlyAccountValidationConfig = {
+  mode: 'READ_ONLY',
   deviceIds: {
     'front-door': '101',
     thermostat: '102',

@@ -101,6 +101,18 @@ function normalizeDevice(
     }
   }
   const batteryLevel = value.battery_level;
+  const manufacturer =
+    typeof value.manufacturer === 'string'
+      ? value.manufacturer
+      : typeof value.manufacturer_name === 'string'
+        ? value.manufacturer_name
+        : undefined;
+  const model =
+    typeof value.model === 'string'
+      ? value.model
+      : typeof value.model_name === 'string'
+        ? value.model_name
+        : undefined;
   const fieldPresence = [
     'online',
     'updated_at',
@@ -118,6 +130,8 @@ function normalizeDevice(
     hubId,
     name: value.name,
     type: value.type,
+    ...(manufacturer === undefined ? {} : { manufacturer }),
+    ...(model === undefined ? {} : { model }),
     online: typeof value.online === 'boolean' ? value.online : null,
     attributes,
     attributeTimestamps,
@@ -535,7 +549,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
   }
 
   private assertWriteAllowed(): void {
-    if (this.mode === 'READ_ONLY') throw new SmartRentReadOnlyError();
+    if (this.mode !== 'READ_WRITE') throw new SmartRentReadOnlyError();
   }
 
   private observeProtocol(event: SmartRentProtocolObservation): void {

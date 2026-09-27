@@ -13,6 +13,7 @@ import {
   createEnvironmentCredentialsProvider,
   loadAccountValidationConfig,
 } from './config.js';
+import { formatSanitizedDiscoveryInventory } from './discovery-inventory.js';
 import type { ValidationAlias } from './config.js';
 import { isNumericDeviceId, mapValidationDevices } from './device-mapping.js';
 
@@ -107,7 +108,7 @@ export async function runAccountValidation(
   let protocolWarningCount = 0;
   const transportOptions: SmartRentProtocolOptions = {
     credentials: createEnvironmentCredentialsProvider(environment),
-    mode: 'READ_ONLY',
+    mode: config.mode,
     observeProtocol: (event) => protocolEvents.push(event),
     warn: () => {
       protocolWarningCount += 1;
@@ -117,6 +118,39 @@ export async function runAccountValidation(
     options.transportFactory ??
     ((settings) => new SmartRentProtocolTransport(settings));
   const transport = makeTransport(transportOptions);
+
+  if (config.mode === 'DISCOVERY_ONLY') {
+    let disconnected = false;
+    try {
+      output('DISCOVERY_ONLY mode: centralized transport write guard enabled');
+      output('HomeKit: not imported or advertised');
+      await transport.authenticate();
+      output('Authentication: succeeded; credentials and tokens suppressed');
+      const totpRequired = protocolEvents.some(
+        (event) => event.kind === 'totp' && event.phase === 'required',
+      );
+      const totpCompleted = protocolEvents.some(
+        (event) => event.kind === 'totp' && event.phase === 'completed',
+      );
+      output(
+        `Authentication: TOTP ${totpRequired ? (totpCompleted ? 'required and completed in memory' : 'required but incomplete') : 'not requested'}`,
+      );
+      const devices = await transport.discoverDevices();
+      for (const line of formatSanitizedDiscoveryInventory(devices)) {
+        output(line);
+      }
+      await transport.disconnect();
+      disconnected = true;
+      output('Disconnect: validator transport closed; no WebSocket was opened');
+      output(
+        'Discovery stopped: device-state reads=0; WebSocket connections=0; device writes=0',
+      );
+    } finally {
+      if (!disconnected) await transport.disconnect();
+    }
+    return;
+  }
+
   const reducer = new StateReducer();
   const connections: ConnectionChange[] = [];
   const events: CapturedEvent[] = [];

@@ -17,7 +17,10 @@ interface FakeDevice {
   id: string;
   name: string;
   type: string;
+  manufacturer?: string;
+  model?: string;
   online: boolean;
+  battery_powered?: boolean;
   room: { hub_id: string };
   attributes: FakeAttribute[];
   battery_level: number;
@@ -46,6 +49,7 @@ export class FakeSmartRentServer {
   sessionCount = 0;
   totpCount = 0;
   discoveryCount = 0;
+  deviceListRequestCount = 0;
   patchAttemptCount = 0;
   patchRequests: Array<{
     deviceId: string;
@@ -62,7 +66,10 @@ export class FakeSmartRentServer {
       id: 'synthetic-lock',
       name: 'Synthetic Front Door',
       type: 'entry_control',
+      manufacturer: 'Yale',
+      model: 'Synthetic Model 123456',
       online: true,
+      battery_powered: true,
       room: { hub_id: 'synthetic-hub' },
       attributes: [this.attribute('locked', true)],
       battery_level: 81,
@@ -304,6 +311,7 @@ export class FakeSmartRentServer {
       request.method === 'GET' &&
       path === '/api/v3/hubs/synthetic-hub/devices'
     ) {
+      this.deviceListRequestCount += 1;
       this.sendJson(response, 200, [...this.devices.values()]);
       return;
     }

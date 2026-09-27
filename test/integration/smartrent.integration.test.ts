@@ -68,6 +68,81 @@ afterEach(async () => {
 });
 
 describe('SmartRent fake-server integration', () => {
+  it('runs DISCOVERY_ONLY, prints sanitized candidates, and stops before state reads or sockets', async () => {
+    const server = new FakeSmartRentServer({ requireTotp: true });
+    await server.listen();
+    servers.push(server);
+    const output: string[] = [];
+    const environment: NodeJS.ProcessEnv = {
+      SMARTRENT_VALIDATION_MODE: 'DISCOVERY_ONLY',
+      SMARTRENT_EMAIL: 'synthetic@example.invalid',
+      SMARTRENT_PASSWORD: 'synthetic-fixture-only',
+      SMARTRENT_TOTP_SECRET: 'synthetic-totp-seed',
+    };
+
+    await runAccountValidation({
+      environment,
+      output: (line) => output.push(line),
+      transportFactory: (settings) => {
+        const transport = new SmartRentProtocolTransport({
+          ...settings,
+          authBaseUrl: server.origin,
+          apiBaseUrl: `${server.origin}/api/v3`,
+          socketUrl: server.socketUrl,
+          socketFactory: (url) => {
+            if (new URL(url).hostname !== '127.0.0.1') {
+              throw new Error('Non-loopback socket blocked in test');
+            }
+            return new WebSocket(url);
+          },
+          totpGenerator: async () => '000000',
+          timeoutMs: 1_000,
+          warn: () => undefined,
+        });
+        transports.push(transport);
+        return transport;
+      },
+    });
+
+    const report = output.join('\n');
+    expect(report).toContain('DISCOVERY_ONLY mode');
+    expect(report).toContain('HomeKit: not imported or advertised');
+    expect(report).toContain('TOTP required and completed in memory');
+    expect(report).toContain('Sanitized inventory: 4 device candidate(s)');
+    expect(report).toContain('category: LOCK CANDIDATE');
+    expect(report).toContain('manufacturer: Yale');
+    expect(report).toContain('model: present; value withheld');
+    expect(report).toContain('battery-powered: yes');
+    expect(report).toContain('category: THERMOSTAT CANDIDATE');
+    expect(report).toContain('category: LEAK SENSOR CANDIDATE');
+    expect(report).toContain('Discovery stopped: device-state reads=0');
+    expect(report).toContain('device writes=0');
+    for (const sensitive of [
+      'synthetic@example.invalid',
+      'synthetic-fixture-only',
+      'synthetic-totp-seed',
+      'synthetic-lock',
+      'synthetic-thermostat',
+      'synthetic-washer-leak',
+      'synthetic-kitchen-leak',
+      'synthetic-hub',
+      'Synthetic Front Door',
+      'synthetic-access-',
+    ]) {
+      expect(report).not.toContain(sensitive);
+    }
+    expect(server.sessionCount).toBe(1);
+    expect(server.totpCount).toBe(1);
+    expect(server.discoveryCount).toBe(1);
+    expect(server.deviceListRequestCount).toBe(1);
+    expect(server.deviceReadRequests.size).toBe(0);
+    expect(server.webSocketConnectionCount).toBe(0);
+    expect(server.joinCount).toBe(0);
+    expect(server.heartbeatCount).toBe(0);
+    expect(server.patchAttemptCount).toBe(0);
+    expect(server.patchRequests).toHaveLength(0);
+  });
+
   it('authenticates, discovers, reads, and treats PATCH acceptance as distinct from reported state', async () => {
     const { server, transport } = await createTransport({ mode: 'READ_WRITE' });
     const devices = await transport.discoverDevices();
@@ -250,6 +325,25 @@ describe('SmartRent fake-server integration', () => {
     expect(server.patchAttemptCount).toBe(1);
     expect(server.patchRequests).toHaveLength(0);
     expect(server.sessionCount).toBe(sessionsBeforeExpiry);
+  });
+
+  it('rejects writes in DISCOVERY_ONLY before any authentication or network request', async () => {
+    const { server, transport } = await createTransport({
+      mode: 'DISCOVERY_ONLY',
+    });
+
+    await expect(
+      transport.setDeviceAttributes('synthetic-lock', [
+        { name: 'locked', state: false },
+      ]),
+    ).rejects.toThrow('state-changing requests are disabled');
+
+    expect(server.sessionCount).toBe(0);
+    expect(server.discoveryCount).toBe(0);
+    expect(server.deviceListRequestCount).toBe(0);
+    expect(server.patchAttemptCount).toBe(0);
+    expect(server.patchRequests).toHaveLength(0);
+    expect(server.webSocketConnectionCount).toBe(0);
   });
 
   it('reconciles once after channel acknowledgement and applies subsequent socket reports', async () => {

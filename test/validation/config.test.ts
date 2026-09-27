@@ -22,7 +22,28 @@ describe('read-only account validation configuration', () => {
         ...completeEnvironment,
         SMARTRENT_VALIDATION_MODE: 'READ_WRITE',
       }),
-    ).toThrow('SMARTRENT_VALIDATION_MODE=READ_ONLY');
+    ).toThrow('SMARTRENT_VALIDATION_MODE must be DISCOVERY_ONLY or READ_ONLY');
+  });
+
+  it('allows discovery-only with credentials and no device IDs or observation window', () => {
+    expect(
+      loadAccountValidationConfig({
+        SMARTRENT_VALIDATION_MODE: 'DISCOVERY_ONLY',
+        SMARTRENT_EMAIL: 'private-email-sentinel',
+        SMARTRENT_PASSWORD: 'private-password-sentinel',
+      }),
+    ).toEqual({ mode: 'DISCOVERY_ONLY' });
+  });
+
+  it('allows optional TOTP input in discovery-only mode without echoing values', () => {
+    expect(
+      loadAccountValidationConfig({
+        SMARTRENT_VALIDATION_MODE: 'DISCOVERY_ONLY',
+        SMARTRENT_EMAIL: 'private-email-sentinel',
+        SMARTRENT_PASSWORD: 'private-password-sentinel',
+        SMARTRENT_TOTP_SECRET: 'private-totp-sentinel',
+      }),
+    ).toEqual({ mode: 'DISCOVERY_ONLY' });
   });
 
   it('reports missing variable names but never echoes configured values', () => {

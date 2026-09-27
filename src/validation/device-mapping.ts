@@ -1,5 +1,8 @@
 import type { SmartRentDevice } from '../transport/types.js';
-import type { AccountValidationConfig, ValidationAlias } from './config.js';
+import type {
+  ReadOnlyAccountValidationConfig,
+  ValidationAlias,
+} from './config.js';
 
 const KNOWN_DEVICE_TYPES = new Set([
   'entry_control',
@@ -32,7 +35,7 @@ export class DeviceMappingError extends Error {
 export function mapValidationDevices(
   firstInventory: readonly SmartRentDevice[],
   secondInventory: readonly SmartRentDevice[],
-  config: AccountValidationConfig,
+  config: ReadOnlyAccountValidationConfig,
 ): MappedValidationDevice[] {
   assertInventoryStable(firstInventory, secondInventory);
   for (const device of firstInventory) {

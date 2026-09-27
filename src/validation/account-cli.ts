@@ -8,7 +8,7 @@ import { runAccountValidation } from './account-validator.js';
 
 try {
   await runAccountValidation();
-  process.stdout.write('Read-only SmartRent account validation completed.\n');
+  process.stdout.write('SmartRent validation completed.\n');
 } catch (error) {
   process.stderr.write(`Read-only validation stopped: ${safeFailure(error)}\n`);
   process.exitCode = 1;
@@ -22,7 +22,7 @@ function safeFailure(error: unknown): string {
     return error.message;
   }
   if (error instanceof SmartRentReadOnlyError) {
-    return 'READ_ONLY transport rejected a state-changing operation';
+    return 'read-only transport rejected a state-changing operation';
   }
   if (error instanceof SmartRentTransportError) {
     return error.status === undefined

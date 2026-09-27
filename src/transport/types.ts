@@ -10,6 +10,8 @@ export interface SmartRentDevice {
   hubId: string;
   name: string;
   type: string;
+  manufacturer?: string;
+  model?: string;
   online: boolean | null;
   attributes: Record<string, unknown>;
   attributeTimestamps?: Record<string, string>;
@@ -42,7 +44,8 @@ export interface SmartRentCredentials {
 export type CredentialsProvider = () => Promise<SmartRentCredentials>;
 export type TotpGenerator = (secret: string) => Promise<string>;
 
-export type SmartRentTransportMode = 'READ_ONLY' | 'READ_WRITE';
+export type SmartRentTransportMode =
+  'DISCOVERY_ONLY' | 'READ_ONLY' | 'READ_WRITE';
 
 export interface RestFence {
   connectionEpoch: number;

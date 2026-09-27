@@ -31,7 +31,7 @@ export class PhoenixSocket {
   private readonly makeSocket: SocketFactory;
 
   constructor(private readonly options: PhoenixSocketOptions) {
-    this.makeSocket = options.socketFactory ?? (url => new WebSocket(url));
+    this.makeSocket = options.socketFactory ?? ((url) => new WebSocket(url));
   }
 
   get connectionEpoch(): number {
@@ -61,24 +61,41 @@ export class PhoenixSocket {
       }, 30_000);
       socket.once('open', () => {
         clearTimeout(timeout);
-        if (this.socket !== socket) return reject(new SmartRentTransportError('WebSocket was replaced while opening'));
-        this.options.onConnectionChange({ connected: true, epoch, reason: 'opened' });
+        if (this.socket !== socket)
+          return reject(
+            new SmartRentTransportError('WebSocket was replaced while opening'),
+          );
+        this.options.onConnectionChange({
+          connected: true,
+          epoch,
+          reason: 'opened',
+        });
         resolve(epoch);
       });
       socket.once('error', () => {
         clearTimeout(timeout);
         if (this.socket === socket) {
-          this.options.onConnectionChange({ connected: false, epoch, reason: 'error' });
+          this.options.onConnectionChange({
+            connected: false,
+            epoch,
+            reason: 'error',
+          });
         }
         reject(new SmartRentTransportError('WebSocket connection failed'));
       });
-      socket.on('message', data => this.handleMessage(socket, epoch, data.toString()));
+      socket.on('message', (data) =>
+        this.handleMessage(socket, epoch, data.toString()),
+      );
       socket.on('close', () => {
         if (this.socket !== socket) return;
         this.socket = undefined;
         this.joined.clear();
         this.rejectPending('WebSocket closed');
-        this.options.onConnectionChange({ connected: false, epoch, reason: 'closed' });
+        this.options.onConnectionChange({
+          connected: false,
+          epoch,
+          reason: 'closed',
+        });
       });
     }).finally(() => {
       this.connecting = undefined;
@@ -88,27 +105,48 @@ export class PhoenixSocket {
   }
 
   async joinChannel(deviceId: string): Promise<void> {
-    if (!this.isConnected || !this.socket) throw new SmartRentTransportError('WebSocket is not connected');
+    if (!this.isConnected || !this.socket)
+      throw new SmartRentTransportError('WebSocket is not connected');
     if (this.joined.has(deviceId)) return;
     const ref = this.nextRef();
-    await this.sendAndWait(ref, [null, ref, `devices:${deviceId}`, 'phx_join', {}], this.options.joinTimeoutMs ?? 5_000);
+    await this.sendAndWait(
+      ref,
+      [null, ref, `devices:${deviceId}`, 'phx_join', {}],
+      this.options.joinTimeoutMs ?? 5_000,
+    );
     this.joined.add(deviceId);
   }
 
   async heartbeat(): Promise<void> {
-    if (!this.isConnected || !this.socket) throw new SmartRentTransportError('WebSocket is not connected');
+    if (!this.isConnected || !this.socket)
+      throw new SmartRentTransportError('WebSocket is not connected');
     const ref = this.nextRef();
-    await this.sendAndWait(ref, [null, ref, 'phoenix', 'heartbeat', {}], this.options.heartbeatTimeoutMs ?? 10_000);
+    await this.sendAndWait(
+      ref,
+      [null, ref, 'phoenix', 'heartbeat', {}],
+      this.options.heartbeatTimeoutMs ?? 10_000,
+    );
   }
 
-  async disconnect(reason: ConnectionChange['reason'] = 'closed', notify = true): Promise<void> {
+  async disconnect(
+    reason: ConnectionChange['reason'] = 'closed',
+    notify = true,
+  ): Promise<void> {
     const socket = this.socket;
     if (!socket) return;
     this.socket = undefined;
     this.joined.clear();
     this.rejectPending('WebSocket disconnected');
-    if (notify) this.options.onConnectionChange({ connected: false, epoch: this.epoch, reason });
-    if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+    if (notify)
+      this.options.onConnectionChange({
+        connected: false,
+        epoch: this.epoch,
+        reason,
+      });
+    if (
+      socket.readyState === WebSocket.OPEN ||
+      socket.readyState === WebSocket.CONNECTING
+    ) {
       socket.close();
     }
   }
@@ -118,17 +156,24 @@ export class PhoenixSocket {
     return String(this.ref);
   }
 
-  private async sendAndWait(ref: string, frame: PhoenixFrame, timeoutMs: number): Promise<void> {
+  private async sendAndWait(
+    ref: string,
+    frame: PhoenixFrame,
+    timeoutMs: number,
+  ): Promise<void> {
     const socket = this.socket;
-    if (!socket || socket.readyState !== WebSocket.OPEN) throw new SmartRentTransportError('WebSocket is not connected');
+    if (!socket || socket.readyState !== WebSocket.OPEN)
+      throw new SmartRentTransportError('WebSocket is not connected');
     const result = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(ref);
-        reject(new SmartRentTransportError('Phoenix acknowledgement timed out'));
+        reject(
+          new SmartRentTransportError('Phoenix acknowledgement timed out'),
+        );
       }, timeoutMs);
       this.pending.set(ref, { resolve, reject, timeout });
     });
-    socket.send(JSON.stringify(frame), error => {
+    socket.send(JSON.stringify(frame), (error) => {
       if (!error) return;
       const pending = this.pending.get(ref);
       if (!pending) return;
@@ -159,16 +204,30 @@ export class PhoenixSocket {
       clearTimeout(pending.timeout);
       this.pending.delete(refValue);
       if ((payload as Reply | null)?.status === 'ok') pending.resolve();
-      else pending.reject(new SmartRentTransportError('Phoenix acknowledgement was not ok'));
+      else
+        pending.reject(
+          new SmartRentTransportError('Phoenix acknowledgement was not ok'),
+        );
       return;
     }
-    if (typeof topic !== 'string' || !topic.startsWith('devices:') || typeof eventName !== 'string' || !eventName.includes('attribute_state')) return;
+    if (
+      typeof topic !== 'string' ||
+      !topic.startsWith('devices:') ||
+      typeof eventName !== 'string' ||
+      !eventName.includes('attribute_state')
+    )
+      return;
     const deviceId = topic.slice('devices:'.length);
     const eventPayload = payload as Record<string, unknown> | null;
-    const attributeState = eventPayload && typeof eventPayload.attribute_state === 'object'
-      ? eventPayload.attribute_state as Record<string, unknown>
-      : eventPayload;
-    if (!attributeState || typeof attributeState.name !== 'string' || !('last_read_state' in attributeState)) {
+    const attributeState =
+      eventPayload && typeof eventPayload.attribute_state === 'object'
+        ? (eventPayload.attribute_state as Record<string, unknown>)
+        : eventPayload;
+    if (
+      !attributeState ||
+      typeof attributeState.name !== 'string' ||
+      !('last_read_state' in attributeState)
+    ) {
       this.options.warn('Ignored malformed SmartRent attribute event');
       return;
     }
@@ -176,7 +235,8 @@ export class PhoenixSocket {
       deviceId,
       attribute: attributeState.name,
       value: attributeState.last_read_state,
-      ...(typeof attributeState.id === 'string' || typeof attributeState.id === 'number'
+      ...(typeof attributeState.id === 'string' ||
+      typeof attributeState.id === 'number'
         ? { eventId: String(attributeState.id) }
         : {}),
       ...(typeof attributeState.last_read_state_changed_at === 'string'

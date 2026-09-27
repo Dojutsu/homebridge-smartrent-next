@@ -8,26 +8,34 @@ const syntheticCredentials = {
 
 describe('SmartRentProtocolTransport', () => {
   it('authenticates, discovers a synthetic device, and sends a single authenticated write', async () => {
-    const calls: Array<{ url: string; method: string; authorization: string | null }> = [];
+    const calls: Array<{
+      url: string;
+      method: string;
+      authorization: string | null;
+    }> = [];
     const fetcher: typeof fetch = async (input, init) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
       const headers = new Headers(init?.headers);
       calls.push({ url, method, authorization: headers.get('authorization') });
       if (url.endsWith('/authentication/sessions')) {
-        return Response.json({ data: { access_token: 'synthetic-access-token' } });
+        return Response.json({
+          data: { access_token: 'synthetic-access-token' },
+        });
       }
       if (url.endsWith('/api/v3/units')) {
         return Response.json({ records: [{ hub_id: 'synthetic-hub' }] });
       }
       if (url.endsWith('/api/v3/hubs/synthetic-hub/devices')) {
-        return Response.json([{
-          id: 42,
-          name: 'Synthetic Lock',
-          type: 'door_lock',
-          online: true,
-          attributes: [{ name: 'locked', state: true }],
-        }]);
+        return Response.json([
+          {
+            id: 42,
+            name: 'Synthetic Lock',
+            type: 'door_lock',
+            online: true,
+            attributes: [{ name: 'locked', state: true }],
+          },
+        ]);
       }
       if (method === 'PATCH') return new Response(null, { status: 202 });
       throw new Error('Unexpected mocked URL');
@@ -41,18 +49,21 @@ describe('SmartRentProtocolTransport', () => {
     });
 
     const devices = await transport.discoverDevices();
-    expect(devices).toEqual([{
-      id: '42',
-      hubId: 'synthetic-hub',
-      name: 'Synthetic Lock',
-      type: 'door_lock',
-      online: true,
-      attributes: { locked: true },
-    }]);
-    await expect(transport.setDeviceAttributes('42', [{ name: 'locked', state: false }]))
-      .resolves.toEqual({ accepted: true });
+    expect(devices).toEqual([
+      {
+        id: '42',
+        hubId: 'synthetic-hub',
+        name: 'Synthetic Lock',
+        type: 'door_lock',
+        online: true,
+        attributes: { locked: true },
+      },
+    ]);
+    await expect(
+      transport.setDeviceAttributes('42', [{ name: 'locked', state: false }]),
+    ).resolves.toEqual({ accepted: true });
 
-    const patchCalls = calls.filter(call => call.method === 'PATCH');
+    const patchCalls = calls.filter((call) => call.method === 'PATCH');
     expect(patchCalls).toHaveLength(1);
     expect(patchCalls[0]?.authorization).toBe('Bearer synthetic-access-token');
   });
@@ -64,16 +75,23 @@ describe('SmartRentProtocolTransport', () => {
       const body = String(init?.body ?? '');
       calls.push({ url, body });
       if (url.endsWith('/authentication/sessions')) {
-        return Response.json({ data: { tfa_api_token: 'synthetic-challenge' } });
+        return Response.json({
+          data: { tfa_api_token: 'synthetic-challenge' },
+        });
       }
       if (url.endsWith('/authentication/sessions/tfa')) {
-        return Response.json({ data: { access_token: 'synthetic-access-token' } });
+        return Response.json({
+          data: { access_token: 'synthetic-access-token' },
+        });
       }
       return new Response('private server response', { status: 503 });
     };
     const totpGenerator = vi.fn(async () => '000000');
     const transport = new SmartRentProtocolTransport({
-      credentials: async () => ({ ...syntheticCredentials, totpSecret: 'synthetic-test-seed' }),
+      credentials: async () => ({
+        ...syntheticCredentials,
+        totpSecret: 'synthetic-test-seed',
+      }),
       authBaseUrl: 'https://auth.example.invalid',
       apiBaseUrl: 'https://api.example.invalid/api/v3',
       socketUrl: 'wss://socket.example.invalid/socket/websocket',
@@ -83,8 +101,13 @@ describe('SmartRentProtocolTransport', () => {
 
     await transport.authenticate();
     expect(totpGenerator).toHaveBeenCalledOnce();
-    expect(calls.some(call => call.url.endsWith('/authentication/sessions/tfa') && call.body.includes('token=000000')))
-      .toBe(true);
+    expect(
+      calls.some(
+        (call) =>
+          call.url.endsWith('/authentication/sessions/tfa') &&
+          call.body.includes('token=000000'),
+      ),
+    ).toBe(true);
   });
 
   it('never retries a rejected physical write', async () => {
@@ -92,12 +115,22 @@ describe('SmartRentProtocolTransport', () => {
     const fetcher: typeof fetch = async (input, init) => {
       const url = String(input);
       if (url.endsWith('/authentication/sessions')) {
-        return Response.json({ data: { access_token: 'synthetic-access-token' } });
+        return Response.json({
+          data: { access_token: 'synthetic-access-token' },
+        });
       }
-      if (url.endsWith('/api/v3/units')) return Response.json({ records: [{ hub_id: 'synthetic-hub' }] });
-      if (url.endsWith('/api/v3/hubs/synthetic-hub/devices')) return Response.json([{
-        id: '42', name: 'Synthetic Lock', type: 'door_lock', online: true, attributes: [],
-      }]);
+      if (url.endsWith('/api/v3/units'))
+        return Response.json({ records: [{ hub_id: 'synthetic-hub' }] });
+      if (url.endsWith('/api/v3/hubs/synthetic-hub/devices'))
+        return Response.json([
+          {
+            id: '42',
+            name: 'Synthetic Lock',
+            type: 'door_lock',
+            online: true,
+            attributes: [],
+          },
+        ]);
       if (init?.method === 'PATCH') {
         patchCount += 1;
         return new Response('redacted', { status: 401 });
@@ -112,8 +145,9 @@ describe('SmartRentProtocolTransport', () => {
       fetcher,
     });
     await transport.discoverDevices();
-    await expect(transport.setDeviceAttributes('42', [{ name: 'locked', state: false }]))
-      .rejects.toThrow('SmartRent PATCH failed with HTTP 401');
+    await expect(
+      transport.setDeviceAttributes('42', [{ name: 'locked', state: false }]),
+    ).rejects.toThrow('SmartRent PATCH failed with HTTP 401');
     expect(patchCount).toBe(1);
   });
 });

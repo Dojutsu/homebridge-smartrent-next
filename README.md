@@ -5,4 +5,3 @@ A focused Homebridge dynamic platform for one SmartRent installation: a front-do
 This repository is under development. It does not connect to SmartRent unless a future explicitly configured transport is supplied. Tests use synthetic devices and a loopback fake server. No production deployment, live credentials, or real lock operation is part of development.
 
 See `docs/` for protocol evidence, state rules, identity constraints, tests, and the future Apple Watch acceptance plan.
-

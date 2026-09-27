@@ -9,11 +9,13 @@ export class SmartRentTransportError extends Error {
   }
 }
 
-export function statusError(status: number, method: string): SmartRentTransportError {
+export function statusError(
+  status: number,
+  method: string,
+): SmartRentTransportError {
   return new SmartRentTransportError(
     `SmartRent ${method} failed with HTTP ${status}`,
     status,
     method === 'GET' && status >= 500,
   );
 }
-

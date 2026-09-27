@@ -6,8 +6,19 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "config.schema.json", "README.md", "LICENSE", "docs"],
-  "keywords": ["homebridge-plugin", "smartrent", "homekit", "apple-home"],
+  "files": [
+    "dist",
+    "config.schema.json",
+    "README.md",
+    "LICENSE",
+    "docs"
+  ],
+  "keywords": [
+    "homebridge-plugin",
+    "smartrent",
+    "homekit",
+    "apple-home"
+  ],
   "engines": {
     "node": ">=20.19.0 <25",
     "homebridge": "^1.8.0 || ^2.0.0"

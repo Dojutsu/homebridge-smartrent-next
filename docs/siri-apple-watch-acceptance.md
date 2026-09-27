@@ -16,4 +16,3 @@ Every lock test distinguishes `TARGET`, `SMARTRENT_REPORTED`, and `PHYSICAL_CONF
 ## Stop conditions
 
 Stop if Siri/Home reports a confident unlocked state when SmartRent is unavailable, identities change, duplicate accessories appear, the bridge cannot recover automatically, a command is repeated, or Apple Watch cannot reliably reach the lock after the configured home-hub path is verified.
-

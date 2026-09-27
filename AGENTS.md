@@ -13,4 +13,3 @@
 - Run format, lint, type-check, unit tests, integration tests, and build before considering a change complete.
 - Tests must not require network access. Mocked protocol tests must use `.invalid` hostnames or a loopback-only fake server.
 - Preserve deterministic accessory UUIDs, bridge pairing persistence, and service/subtype layout. Identity changes require explicit documentation and migration tests.
-

@@ -60,7 +60,8 @@ export interface SmartRentTransport {
   heartbeat(): Promise<void>;
   disconnect(): Promise<void>;
   reconnect(): Promise<number>;
-  onDeviceEvent(listener: (event: DeviceEvent, epoch: number) => void): () => void;
+  onDeviceEvent(
+    listener: (event: DeviceEvent, epoch: number) => void,
+  ): () => void;
   onConnectionChange(listener: (change: ConnectionChange) => void): () => void;
 }
-

@@ -61,7 +61,7 @@ export class FakeSmartRentServer {
     this.devices.set('synthetic-lock', {
       id: 'synthetic-lock',
       name: 'Synthetic Front Door',
-      type: 'lock',
+      type: 'entry_control',
       online: true,
       room: { hub_id: 'synthetic-hub' },
       attributes: [this.attribute('locked', true)],
@@ -88,7 +88,7 @@ export class FakeSmartRentServer {
     this.devices.set('synthetic-washer-leak', {
       id: 'synthetic-washer-leak',
       name: 'Synthetic Washer Leak Sensor',
-      type: 'leak_sensor',
+      type: 'sensor_notification',
       online: true,
       room: { hub_id: 'synthetic-hub' },
       attributes: [this.attribute('leak', false)],
@@ -98,7 +98,7 @@ export class FakeSmartRentServer {
     this.devices.set('synthetic-kitchen-leak', {
       id: 'synthetic-kitchen-leak',
       name: 'Synthetic Kitchen Sink Leak Sensor',
-      type: 'leak_sensor',
+      type: 'sensor_notification',
       online: true,
       room: { hub_id: 'synthetic-hub' },
       attributes: [this.attribute('leak', false)],

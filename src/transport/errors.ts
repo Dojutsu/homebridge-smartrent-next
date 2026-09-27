@@ -9,6 +9,15 @@ export class SmartRentTransportError extends Error {
   }
 }
 
+export class SmartRentReadOnlyError extends Error {
+  constructor() {
+    super(
+      'SmartRent transport is READ_ONLY; state-changing requests are disabled',
+    );
+    this.name = 'SmartRentReadOnlyError';
+  }
+}
+
 export function statusError(
   status: number,
   method: string,

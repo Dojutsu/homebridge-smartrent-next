@@ -12,6 +12,8 @@ export interface SmartRentDevice {
   type: string;
   online: boolean | null;
   attributes: Record<string, unknown>;
+  attributeTimestamps?: Record<string, string>;
+  fieldPresence?: readonly string[];
   updatedAt?: string;
   batteryLevel?: number | null;
   batteryPowered?: boolean | null;
@@ -39,6 +41,8 @@ export interface SmartRentCredentials {
 
 export type CredentialsProvider = () => Promise<SmartRentCredentials>;
 export type TotpGenerator = (secret: string) => Promise<string>;
+
+export type SmartRentTransportMode = 'READ_ONLY' | 'READ_WRITE';
 
 export interface RestFence {
   connectionEpoch: number;

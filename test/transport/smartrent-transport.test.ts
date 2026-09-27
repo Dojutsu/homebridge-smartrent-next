@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SmartRentReadOnlyError } from '../../src/transport/errors.js';
 import { SmartRentProtocolTransport } from '../../src/transport/smartrent-transport.js';
 
 const syntheticCredentials = {
@@ -46,6 +47,7 @@ describe('SmartRentProtocolTransport', () => {
       apiBaseUrl: 'https://api.example.invalid/api/v3',
       socketUrl: 'wss://socket.example.invalid/socket/websocket',
       fetcher,
+      mode: 'READ_WRITE',
     });
 
     const devices = await transport.discoverDevices();
@@ -57,6 +59,8 @@ describe('SmartRentProtocolTransport', () => {
         type: 'door_lock',
         online: true,
         attributes: { locked: true },
+        attributeTimestamps: {},
+        fieldPresence: ['online'],
       },
     ]);
     await expect(
@@ -143,11 +147,37 @@ describe('SmartRentProtocolTransport', () => {
       apiBaseUrl: 'https://api.example.invalid/api/v3',
       socketUrl: 'wss://socket.example.invalid/socket/websocket',
       fetcher,
+      mode: 'READ_WRITE',
     });
     await transport.discoverDevices();
     await expect(
       transport.setDeviceAttributes('42', [{ name: 'locked', state: false }]),
     ).rejects.toThrow('SmartRent PATCH failed with HTTP 401');
     expect(patchCount).toBe(1);
+  });
+
+  it('defaults to READ_ONLY and blocks lock and thermostat writes before credentials or network access', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const credentials = vi.fn(async () => syntheticCredentials);
+    const transport = new SmartRentProtocolTransport({
+      credentials,
+      authBaseUrl: 'https://auth.example.invalid',
+      apiBaseUrl: 'https://api.example.invalid/api/v3',
+      socketUrl: 'wss://socket.example.invalid/socket/websocket',
+      fetcher,
+    });
+
+    await expect(
+      transport.setDeviceAttributes('synthetic-lock', [
+        { name: 'locked', state: false },
+      ]),
+    ).rejects.toBeInstanceOf(SmartRentReadOnlyError);
+    await expect(
+      transport.setDeviceAttributes('synthetic-thermostat', [
+        { name: 'heating_setpoint', state: '72' },
+      ]),
+    ).rejects.toBeInstanceOf(SmartRentReadOnlyError);
+    expect(credentials).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,14 @@
 import { createGuardrails, generate } from 'otplib';
-import { PhoenixSocket, type SocketFactory } from './phoenix-socket.js';
-import { SmartRentTransportError, statusError } from './errors.js';
+import {
+  PhoenixSocket,
+  type PhoenixProtocolObservation,
+  type SocketFactory,
+} from './phoenix-socket.js';
+import {
+  SmartRentReadOnlyError,
+  SmartRentTransportError,
+  statusError,
+} from './errors.js';
 import type {
   ConnectionChange,
   CredentialsProvider,
@@ -8,6 +16,7 @@ import type {
   DeviceEvent,
   SmartRentDevice,
   SmartRentTransport,
+  SmartRentTransportMode,
   TotpGenerator,
 } from './types.js';
 
@@ -16,6 +25,7 @@ type JsonObject = Record<string, unknown>;
 
 export interface SmartRentProtocolOptions {
   credentials: CredentialsProvider;
+  mode?: SmartRentTransportMode;
   authBaseUrl?: string;
   apiBaseUrl?: string;
   socketUrl?: string;
@@ -24,7 +34,30 @@ export interface SmartRentProtocolOptions {
   totpGenerator?: TotpGenerator;
   timeoutMs?: number;
   warn?: (message: string) => void;
+  observeProtocol?: (event: SmartRentProtocolObservation) => void;
 }
+
+export type SmartRentProtocolObservation =
+  | { kind: 'authentication'; result: 'authenticated' }
+  | { kind: 'totp'; phase: 'required' | 'completed' }
+  | {
+      kind: 'access-token';
+      format: 'jwt-with-exp' | 'jwt-no-exp' | 'opaque';
+      expiresInSeconds?: number;
+    }
+  | { kind: 'websocket-token'; acquired: true }
+  | PhoenixProtocolObservation
+  | {
+      kind: 'units-envelope';
+      recordsPath: 'records' | 'data.records';
+      records: number;
+      hubs: number;
+    }
+  | {
+      kind: 'device-list-envelope';
+      recordsPath: 'array' | 'data';
+      records: number;
+    };
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -56,14 +89,30 @@ function normalizeDevice(
     );
   }
   const attributes: Record<string, unknown> = {};
+  const attributeTimestamps: Record<string, string> = {};
   if (Array.isArray(value.attributes)) {
     for (const item of value.attributes) {
       if (isObject(item) && typeof item.name === 'string' && 'state' in item) {
         attributes[item.name] = item.state;
+        if (typeof item.last_read_state_changed_at === 'string') {
+          attributeTimestamps[item.name] = item.last_read_state_changed_at;
+        }
       }
     }
   }
   const batteryLevel = value.battery_level;
+  const fieldPresence = [
+    'online',
+    'updated_at',
+    'battery_level',
+    'battery_powered',
+    'jammed',
+    'jam',
+    'warning',
+    'warnings',
+    'fault',
+    'error',
+  ].filter((field) => field in value);
   return {
     id,
     hubId,
@@ -71,6 +120,8 @@ function normalizeDevice(
     type: value.type,
     online: typeof value.online === 'boolean' ? value.online : null,
     attributes,
+    attributeTimestamps,
+    fieldPresence,
     ...(typeof value.updated_at === 'string'
       ? { updatedAt: value.updated_at }
       : {}),
@@ -97,6 +148,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
   private readonly apiBaseUrl: string;
   private readonly socketUrl: string;
   private readonly timeoutMs: number;
+  private readonly mode: SmartRentTransportMode;
   private readonly warn: (message: string) => void;
   private readonly totpGenerator: TotpGenerator;
   private accessToken: string | undefined;
@@ -123,6 +175,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
     this.socketUrl =
       options.socketUrl ?? 'wss://control.smartrent.com/socket/websocket';
     this.timeoutMs = options.timeoutMs ?? 10_000;
+    this.mode = options.mode ?? 'READ_ONLY';
     this.warn = options.warn ?? (() => undefined);
     this.totpGenerator = options.totpGenerator ?? defaultTotp;
     this.socket = new PhoenixSocket({
@@ -135,14 +188,22 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       onConnectionChange: (change) =>
         this.connectionListeners.forEach((listener) => listener(change)),
       warn: this.warn,
+      observeProtocol: (event) => this.observeProtocol(event),
     });
   }
 
   async authenticate(): Promise<void> {
     if (this.authInFlight) return this.authInFlight;
-    this.authInFlight = this.performAuthentication().finally(() => {
-      this.authInFlight = undefined;
-    });
+    this.authInFlight = this.performAuthentication()
+      .then(() => {
+        this.observeProtocol({
+          kind: 'authentication',
+          result: 'authenticated',
+        });
+      })
+      .finally(() => {
+        this.authInFlight = undefined;
+      });
     return this.authInFlight;
   }
 
@@ -171,6 +232,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
         'TOTP authentication response did not contain an access token',
       );
     this.storeAccessToken(token);
+    this.observeProtocol({ kind: 'totp', phase: 'completed' });
     this.tfaApiToken = undefined;
   }
 
@@ -182,6 +244,10 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
 
   async discoverDevices(): Promise<SmartRentDevice[]> {
     const unitsResponse = await this.getJson('/units');
+    const unitRecordsPath =
+      isObject(unitsResponse) && Array.isArray(unitsResponse.records)
+        ? 'records'
+        : 'data.records';
     const unitRecords =
       isObject(unitsResponse) && Array.isArray(unitsResponse.records)
         ? unitsResponse.records
@@ -192,6 +258,15 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
           : undefined;
     if (!unitRecords)
       throw new SmartRentTransportError('Malformed unit discovery response');
+    const validHubs = unitRecords.filter(
+      (unit) => isObject(unit) && Boolean(asString(unit.hub_id)),
+    );
+    this.observeProtocol({
+      kind: 'units-envelope',
+      recordsPath: unitRecordsPath,
+      records: unitRecords.length,
+      hubs: validHubs.length,
+    });
     const devices: SmartRentDevice[] = [];
     for (const unit of unitRecords) {
       if (!isObject(unit)) continue;
@@ -200,6 +275,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       const list = await this.getJson(
         `/hubs/${encodeURIComponent(hubId)}/devices`,
       );
+      const deviceRecordsPath = Array.isArray(list) ? 'array' : 'data';
       const deviceRecords = Array.isArray(list)
         ? list
         : isObject(list) && Array.isArray(list.data)
@@ -209,6 +285,11 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
         throw new SmartRentTransportError(
           'Malformed device discovery response',
         );
+      this.observeProtocol({
+        kind: 'device-list-envelope',
+        recordsPath: deviceRecordsPath,
+        records: deviceRecords.length,
+      });
       for (const record of deviceRecords) {
         const device = normalizeDevice(record, hubId);
         this.hubs.set(device.id, device.hubId);
@@ -235,6 +316,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
     deviceId: string,
     attributes: DeviceAttribute[],
   ): Promise<{ accepted: true }> {
+    this.assertWriteAllowed();
     const hubId = this.hubs.get(deviceId);
     if (!hubId)
       throw new SmartRentTransportError('Unknown SmartRent device ID');
@@ -275,6 +357,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       throw new SmartRentTransportError(
         'WebSocket token response was malformed',
       );
+    this.observeProtocol({ kind: 'websocket-token', acquired: true });
     return this.socket.connect(token);
   }
 
@@ -334,6 +417,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       throw new SmartRentTransportError(
         'Authentication response was malformed',
       );
+    this.observeProtocol({ kind: 'totp', phase: 'required' });
     if (!credentials.totpSecret)
       throw new SmartRentTransportError(
         'SmartRent requires TOTP but no TOTP provider is configured',
@@ -345,7 +429,23 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
 
   private storeAccessToken(token: string): void {
     this.accessToken = token;
-    this.tokenExpiresAt = this.jwtExpiry(token);
+    const expiresAt = this.jwtExpiry(token);
+    this.tokenExpiresAt =
+      expiresAt === undefined ? undefined : expiresAt - 60_000;
+    const tokenParts = token.split('.');
+    const format =
+      tokenParts.length !== 3
+        ? 'opaque'
+        : expiresAt === undefined
+          ? 'jwt-no-exp'
+          : 'jwt-with-exp';
+    this.observeProtocol({
+      kind: 'access-token',
+      format,
+      ...(expiresAt === undefined
+        ? {}
+        : { expiresInSeconds: Math.floor((expiresAt - Date.now()) / 1000) }),
+    });
   }
 
   private jwtExpiry(token: string): number | undefined {
@@ -356,7 +456,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
         Buffer.from(payload, 'base64url').toString('utf8'),
       );
       return isObject(parsed) && typeof parsed.exp === 'number'
-        ? parsed.exp * 1000 - 60_000
+        ? parsed.exp * 1000
         : undefined;
     } catch {
       return undefined;
@@ -413,6 +513,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
   }
 
   private async authenticatedWrite(url: string, body: unknown): Promise<void> {
+    this.assertWriteAllowed();
     await this.ensureAuthenticated();
     let response: Response;
     try {
@@ -431,6 +532,18 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       );
     }
     if (!response.ok) throw statusError(response.status, 'PATCH');
+  }
+
+  private assertWriteAllowed(): void {
+    if (this.mode === 'READ_ONLY') throw new SmartRentReadOnlyError();
+  }
+
+  private observeProtocol(event: SmartRentProtocolObservation): void {
+    try {
+      this.options.observeProtocol?.(event);
+    } catch {
+      // Diagnostic observers cannot change transport or authentication behavior.
+    }
   }
 
   private async requestJson(

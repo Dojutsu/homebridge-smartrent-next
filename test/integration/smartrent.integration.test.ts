@@ -6,7 +6,11 @@ import {
   readAuthoritativeAttribute,
 } from '../../src/state/model.js';
 import { SmartRentProtocolTransport } from '../../src/transport/smartrent-transport.js';
-import type { SmartRentProtocolOptions } from '../../src/transport/smartrent-transport.js';
+import type {
+  SmartRentProtocolOptions,
+  SmartRentTransportMode,
+} from '../../src/transport/smartrent-transport.js';
+import { runAccountValidation } from '../../src/validation/account-validator.js';
 import { FakeSmartRentServer } from '../support/fake-smartrent-server.js';
 
 const syntheticCredentials = {
@@ -19,7 +23,11 @@ const transports: SmartRentProtocolTransport[] = [];
 const supervisors: ConnectionSupervisor[] = [];
 
 async function createTransport(
-  options: { requireTotp?: boolean; totpSecret?: string } = {},
+  options: {
+    requireTotp?: boolean;
+    totpSecret?: string;
+    mode?: SmartRentTransportMode;
+  } = {},
 ): Promise<{
   server: FakeSmartRentServer;
   transport: SmartRentProtocolTransport;
@@ -34,6 +42,7 @@ async function createTransport(
       ...syntheticCredentials,
       ...(options.totpSecret ? { totpSecret: options.totpSecret } : {}),
     }),
+    mode: options.mode ?? 'READ_ONLY',
     authBaseUrl: server.origin,
     apiBaseUrl: `${server.origin}/api/v3`,
     socketUrl: server.socketUrl,
@@ -60,7 +69,7 @@ afterEach(async () => {
 
 describe('SmartRent fake-server integration', () => {
   it('authenticates, discovers, reads, and treats PATCH acceptance as distinct from reported state', async () => {
-    const { server, transport } = await createTransport();
+    const { server, transport } = await createTransport({ mode: 'READ_WRITE' });
     const devices = await transport.discoverDevices();
     expect(devices.map(({ id }) => id)).toContain('synthetic-lock');
 
@@ -78,6 +87,95 @@ describe('SmartRent fake-server integration', () => {
       { name: 'locked', state: 'false' },
     ]);
     expect(server.getDevice('synthetic-lock')?.attributes[0]?.state).toBe(true);
+  });
+
+  it('runs the standalone account validator with TOTP and READ_ONLY transport, redacting synthetic identity and credentials', async () => {
+    const server = new FakeSmartRentServer({ requireTotp: true });
+    await server.listen();
+    servers.push(server);
+    const output: string[] = [];
+    const environment: NodeJS.ProcessEnv = {
+      SMARTRENT_VALIDATION_MODE: 'READ_ONLY',
+      SMARTRENT_EMAIL: 'synthetic@example.invalid',
+      SMARTRENT_PASSWORD: 'synthetic-fixture-only',
+      SMARTRENT_TOTP_SECRET: 'synthetic-totp-seed',
+      SMARTRENT_LOCK_DEVICE_ID: 'synthetic-lock',
+      SMARTRENT_THERMOSTAT_DEVICE_ID: 'synthetic-thermostat',
+      SMARTRENT_WASHER_LEAK_DEVICE_ID: 'synthetic-washer-leak',
+      SMARTRENT_KITCHEN_LEAK_DEVICE_ID: 'synthetic-kitchen-leak',
+      SMARTRENT_OBSERVE_SECONDS: '1',
+    };
+
+    const validation = runAccountValidation({
+      environment,
+      output: (line) => output.push(line),
+      transportFactory: (settings) => {
+        const transport = new SmartRentProtocolTransport({
+          ...settings,
+          authBaseUrl: server.origin,
+          apiBaseUrl: `${server.origin}/api/v3`,
+          socketUrl: server.socketUrl,
+          socketFactory: (url) => {
+            if (new URL(url).hostname !== '127.0.0.1') {
+              throw new Error('Non-loopback socket blocked in test');
+            }
+            return new WebSocket(url);
+          },
+          totpGenerator: async () => '000000',
+          timeoutMs: 1_000,
+          warn: () => undefined,
+        });
+        transports.push(transport);
+        return transport;
+      },
+    });
+    await vi.waitFor(() => expect(server.joinCount).toBe(4));
+    server.emitAttribute('synthetic-lock', 'locked', true);
+    await validation;
+
+    const report = output.join('\n');
+    for (const sensitive of [
+      'synthetic@example.invalid',
+      'synthetic-fixture-only',
+      'synthetic-totp-seed',
+      'synthetic-lock',
+      'synthetic-thermostat',
+      'synthetic-washer-leak',
+      'synthetic-kitchen-leak',
+      'Synthetic Front Door',
+      'Synthetic Thermostat',
+      'synthetic-access-',
+      'synthetic-websocket-token',
+    ]) {
+      expect(report).not.toContain(sensitive);
+    }
+    expect(report).toContain('READ_ONLY mode');
+    expect(report).toContain('TOTP required and completed in memory');
+    expect(report).toContain('Phoenix heartbeat: 3/3 acknowledgements');
+    expect(report).toContain(
+      'Phoenix acknowledgement evidence: join=8; heartbeat=6; correlated successful responses=14/14',
+    );
+    expect(report).toContain(
+      'nested-attribute_state/attribute_state_updated=1',
+    );
+    expect(report).toContain(
+      'websocket=SECURED REST=SECURED comparison=matches REST baseline',
+    );
+    expect(report).toContain('Controlled client close: observed');
+    expect(report).toContain(
+      'Phoenix channels: all 4 devices joined and acknowledged',
+    );
+    expect(report).toContain('front-door');
+    expect(report).toContain('thermostat');
+    expect(report).toContain('washer-leak');
+    expect(report).toContain('kitchen-leak');
+    expect(server.sessionCount).toBe(1);
+    expect(server.totpCount).toBe(1);
+    expect(server.webSocketConnectionCount).toBe(2);
+    expect(server.joinCount).toBe(8);
+    expect(server.heartbeatCount).toBe(6);
+    expect(server.patchAttemptCount).toBe(0);
+    expect(server.patchRequests).toHaveLength(0);
   });
 
   it('completes the synthetic TOTP challenge without using real credentials', async () => {
@@ -139,7 +237,7 @@ describe('SmartRent fake-server integration', () => {
   });
 
   it('never retries a physical PATCH when the server rejects its expired token', async () => {
-    const { server, transport } = await createTransport();
+    const { server, transport } = await createTransport({ mode: 'READ_WRITE' });
     await transport.discoverDevices();
     const sessionsBeforeExpiry = server.sessionCount;
     server.expireAccessTokens();

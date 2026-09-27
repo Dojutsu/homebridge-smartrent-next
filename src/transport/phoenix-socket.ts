@@ -5,10 +5,23 @@ import { SmartRentTransportError } from './errors.js';
 type PhoenixFrame = [null, string | null, string, string, unknown];
 type Reply = { status?: string; response?: unknown };
 type Pending = {
+  action: 'join' | 'heartbeat';
   resolve: () => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
 };
+export type PhoenixProtocolObservation =
+  | {
+      kind: 'acknowledgement';
+      action: 'join' | 'heartbeat';
+      status: 'ok' | 'error';
+      referenceCorrelated: true;
+    }
+  | {
+      kind: 'device-event-envelope';
+      shape: 'nested-attribute_state' | 'direct-attribute_state';
+      event: 'attribute_state_updated' | 'other-attribute-state';
+    };
 export type SocketFactory = (url: string) => WebSocket;
 
 export interface PhoenixSocketOptions {
@@ -19,6 +32,7 @@ export interface PhoenixSocketOptions {
   onDeviceEvent: (event: DeviceEvent, epoch: number) => void;
   onConnectionChange: (change: ConnectionChange) => void;
   warn: (message: string) => void;
+  observeProtocol?: (event: PhoenixProtocolObservation) => void;
 }
 
 export class PhoenixSocket {
@@ -113,6 +127,7 @@ export class PhoenixSocket {
       ref,
       [null, ref, `devices:${deviceId}`, 'phx_join', {}],
       this.options.joinTimeoutMs ?? 5_000,
+      'join',
     );
     this.joined.add(deviceId);
   }
@@ -125,6 +140,7 @@ export class PhoenixSocket {
       ref,
       [null, ref, 'phoenix', 'heartbeat', {}],
       this.options.heartbeatTimeoutMs ?? 10_000,
+      'heartbeat',
     );
   }
 
@@ -160,6 +176,7 @@ export class PhoenixSocket {
     ref: string,
     frame: PhoenixFrame,
     timeoutMs: number,
+    action: Pending['action'],
   ): Promise<void> {
     const socket = this.socket;
     if (!socket || socket.readyState !== WebSocket.OPEN)
@@ -171,7 +188,7 @@ export class PhoenixSocket {
           new SmartRentTransportError('Phoenix acknowledgement timed out'),
         );
       }, timeoutMs);
-      this.pending.set(ref, { resolve, reject, timeout });
+      this.pending.set(ref, { action, resolve, reject, timeout });
     });
     socket.send(JSON.stringify(frame), (error) => {
       if (!error) return;
@@ -203,7 +220,15 @@ export class PhoenixSocket {
       if (!pending) return;
       clearTimeout(pending.timeout);
       this.pending.delete(refValue);
-      if ((payload as Reply | null)?.status === 'ok') pending.resolve();
+      const status =
+        (payload as Reply | null)?.status === 'ok' ? 'ok' : 'error';
+      this.options.observeProtocol?.({
+        kind: 'acknowledgement',
+        action: pending.action,
+        status,
+        referenceCorrelated: true,
+      });
+      if (status === 'ok') pending.resolve();
       else
         pending.reject(
           new SmartRentTransportError('Phoenix acknowledgement was not ok'),
@@ -219,8 +244,11 @@ export class PhoenixSocket {
       return;
     const deviceId = topic.slice('devices:'.length);
     const eventPayload = payload as Record<string, unknown> | null;
+    const nested = Boolean(
+      eventPayload && typeof eventPayload.attribute_state === 'object',
+    );
     const attributeState =
-      eventPayload && typeof eventPayload.attribute_state === 'object'
+      nested && eventPayload
         ? (eventPayload.attribute_state as Record<string, unknown>)
         : eventPayload;
     if (
@@ -231,6 +259,14 @@ export class PhoenixSocket {
       this.options.warn('Ignored malformed SmartRent attribute event');
       return;
     }
+    this.options.observeProtocol?.({
+      kind: 'device-event-envelope',
+      shape: nested ? 'nested-attribute_state' : 'direct-attribute_state',
+      event:
+        eventName === 'attribute_state_updated'
+          ? 'attribute_state_updated'
+          : 'other-attribute-state',
+    });
     const normalized: DeviceEvent = {
       deviceId,
       attribute: attributeState.name,

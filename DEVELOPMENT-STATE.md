@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Transport abstraction, authoritative state reducer, native HomeKit LockMechanism adapter, redacted diagnostics, bounded connection supervisor, leak sensor, battery and thermostat services, Homebridge dynamic-platform registration, and a loopback fake server are implemented. The local fake-server suite covers login/TOTP, device discovery and reads, accepted-but-unreported writes, token expiry, Phoenix joins/heartbeats/events, malformed frames, disconnect/rejoin, stale REST snapshots, and duplicate/out-of-order events. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
+Transport abstraction, authoritative state reducer, native HomeKit LockMechanism adapter, redacted diagnostics, bounded connection supervisor, leak sensor, battery and thermostat services, Homebridge dynamic-platform registration, and a loopback fake server are implemented. A separate account-validation command now uses a runtime-only credential provider and enforces READ_ONLY at the transport boundary. Local fake-server coverage includes login/TOTP, discovery and reads, accepted-but-unreported writes, token expiry, Phoenix acknowledgements/events, malformed frames, controlled client reconnect, stale REST snapshots, duplicate/out-of-order events, and validator-output redaction. No real SmartRent credentials have been used in this phase. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
 
 ## Scope
 
@@ -14,7 +14,9 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Protocol facts from the earlier research implementation are documented as `VERIFIED` (code evidence), `INFERRED`, or `UNKNOWN`; they are not an official SmartRent API contract.
 - Unit and integration tests use synthetic devices and mocks/local servers only.
 - The transport, reducer, lock, reconnect, leak, battery, thermostat, HAP adapter fixes, and Homebridge platform each have focused commits. The fake-server integration suite is the final implementation commit in this phase.
-- Final local check: formatting, ESLint, type-check, build, 65 unit tests, and 8 loopback integration tests pass on Node 20.19.2. GitHub CI has not run: this checkout has no remote, and `Dojutsu/homebridge-smartrent-next` does not exist yet.
+- Repository: `Dojutsu/homebridge-smartrent-next`, with the original project foundation at `4174b86e81e6cfb0b114989f24a51a660bb603c1`. The initial Node 20/22/24 CI run passed formatting, ESLint, type-check, 65 unit tests, 8 fake-server integration tests, and build.
+- This validation-tool change passes local formatting, ESLint, type-check, 74 unit tests, 9 fake-server integration tests, and build on Node 20.19.2. GitHub Actions has not run for this change.
+- `npm run validate:account` was run as a preflight only and stopped before authentication because the runtime environment did not contain `SMARTRENT_VALIDATION_MODE` or account/device mapping variables. No authentication or SmartRent request has been attempted.
 
 ## Open gates
 
@@ -22,5 +24,8 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Validate Apple Home's presentation of HAP `UNKNOWN`, offline faults, and leak/battery read failures on test accessories before a production migration.
 - Rehearse HomeKit identity continuity using cloned Homebridge storage before considering any migration.
 - Test Apple Watch Siri locally, remotely through the home hub, after restart/reconnect, and during a multi-day soak before any release recommendation.
-- Add a reviewed credential provider before any real-account access. The shipped entry point deliberately does not read environment credentials or authenticate.
-- Create the requested GitHub repository, push the focused commits, and verify the Node 20/22/24 CI matrix before considering the repository foundation complete.
+- Verify the read-only validator change in GitHub Actions before any live request.
+- Securely provide the required runtime variables and explicit device IDs to the validator process before live protocol validation. Never send their values in chat or store them in the repository.
+- Validate Apple Home's presentation of HAP `UNKNOWN`, offline faults, and leak/battery read failures on test accessories before a production migration.
+- Rehearse HomeKit identity continuity using cloned Homebridge storage before considering any migration.
+- Test Apple Watch Siri locally, remotely through the home hub, after restart/reconnect, and during a multi-day soak before any release recommendation.

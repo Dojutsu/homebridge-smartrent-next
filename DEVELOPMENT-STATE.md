@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Transport abstraction, authoritative state reducer, native HomeKit LockMechanism adapter, redacted lock diagnostics, bounded connection supervisor, and read-only leak-sensor adapter are implemented and unit-tested. Battery, thermostat, dynamic platform, and fake-server layers remain in development. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
+Transport abstraction, authoritative state reducer, native HomeKit LockMechanism adapter, redacted diagnostics, bounded connection supervisor, read-only leak-sensor adapter, and battery model/service are implemented and unit-tested. Thermostat, dynamic platform, and fake-server layers remain in development. No SmartRent credentials have been used. No production Homebridge host has been contacted. No real accessory or lock has been controlled. No HomeKit bridge has been advertised on the household LAN.
 
 ## Scope
 
@@ -14,7 +14,7 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Protocol facts from the earlier research implementation are documented as `VERIFIED` (code evidence), `INFERRED`, or `UNKNOWN`; they are not an official SmartRent API contract.
 - Unit and integration tests use synthetic devices and mocks/local servers only.
 - `feat: add SmartRent transport abstraction`, `feat: add authoritative state reducer`, and `feat: add HomeKit lock support` are committed; the reconnect supervisor is ready for its focused commit.
-- Current unit result: 37 tests pass on the local Node 20.19.2 runtime. CI has not run because the new GitHub repository is not yet available.
+- Current unit result: 50 tests pass on the local Node 20.19.2 runtime. CI has not run because the new GitHub repository is not yet available.
 
 ## Open gates
 

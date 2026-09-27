@@ -5,7 +5,7 @@ All tests inject a `SmartRentTransport` or talk only to a loopback fake server. 
 ## Required matrix
 
 - **Lock:** secured/unsecured/unknown/offline/jammed; accepted command with no state change; conflicting and delayed report; reconnect; stale REST; duplicate and out-of-order event; rapid commands; unresolved timeout; no retries.
-- **Battery:** valid/missing/malformed/stale/API failure; thresholds; first read unknown; later recovery; never default to 100%.
+- **Battery:** valid/missing/malformed/stale/API failure; 20% threshold; service absent before first valid report; later recovery; never default to 100%.
 - **Thermostat:** heat/cool/off/auto; current vs target mode; target changes; rapid changes; stale mode; delayed confirmation; cloud timeout; reconnect; separate current temperature, humidity, setpoints, and operating state.
 - **Leak:** dry/leak; offline/unknown/malformed; reconnect baseline; duplicate event; unknown never becomes dry; unavailable HomeKit reads return a communication fault.
 - **Connection:** login, TOTP challenge, auth expiry, WebSocket disconnect, missed heartbeat response, reconnect, channel join acknowledgement, resubscription, REST errors, malformed frames.

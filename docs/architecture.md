@@ -40,3 +40,5 @@ The process remains alive through authentication, REST, or WebSocket failures. R
 ## Implementation policy
 
 The new TypeScript client is authored in this repository behind `SmartRentTransport`. The prior GPL-3.0-or-later integration is protocol evidence, not copied source. No SmartRent request is made by tests except to a loopback fake server.
+
+The Homebridge plugin entry point registers a dynamic platform. A transport factory is deliberately absent from the shipped entry point during this credential-free phase: configuring device IDs alone does not authenticate, contact SmartRent, create accessories, or advertise a new bridge. Tests inject only a synthetic transport. A separately reviewed credential provider is required before any real-account validation.

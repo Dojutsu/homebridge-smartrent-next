@@ -6,7 +6,7 @@ All tests inject a `SmartRentTransport` or talk only to a loopback fake server. 
 
 - **Lock:** secured/unsecured/unknown/offline/jammed; accepted command with no state change; conflicting and delayed report; reconnect; stale REST; duplicate and out-of-order event; rapid commands; unresolved timeout; no retries.
 - **Battery:** valid/missing/malformed/stale/API failure; 20% threshold; service absent before first valid report; later recovery; never default to 100%.
-- **Thermostat:** heat/cool/off/auto; current vs target mode; target changes; rapid changes; stale mode; delayed confirmation; cloud timeout; reconnect; separate current temperature, humidity, setpoints, and operating state.
+- **Thermostat:** heat/cool/off/auto; current vs target mode; target changes; rapid changes; stale mode; delayed confirmation; cloud timeout; reconnect; separate current temperature, humidity, setpoints, and operating state; fresh-mode writes avoid a GET while unknown mode allows exactly one fenced GET.
 - **Leak:** dry/leak; offline/unknown/malformed; reconnect baseline; duplicate event; unknown never becomes dry; unavailable HomeKit reads return a communication fault.
 - **Connection:** login, TOTP challenge, auth expiry, WebSocket disconnect, missed heartbeat response, reconnect, channel join acknowledgement, resubscription, REST errors, malformed frames.
 - **Platform/identity:** restored cached accessories, stable UUIDs, unchanged service/subtype layout, isolated child-bridge lifecycle, cloned fake Homebridge storage.

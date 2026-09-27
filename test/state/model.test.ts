@@ -181,6 +181,34 @@ describe('StateReducer', () => {
     expect(readAuthoritativeAttribute(state, 'locked')).toBe(true);
   });
 
+  it('does not let a delayed contradictory report clear a newer requested target', () => {
+    const reducer = baseline();
+    reducer.recordRequested(lockId, 'locked', false, 'cmd-1', 200);
+    reducer.markCommandAccepted(lockId, 'locked', 'cmd-1');
+    reducer.recordRequested(lockId, 'locked', true, 'cmd-2', 300);
+    const oldReport = reducer.applyEvent(
+      lockId,
+      'locked',
+      false,
+      0,
+      400,
+      'old-command-report',
+    );
+    expect(oldReport.state.requested.locked).toMatchObject({
+      value: true,
+      commandId: 'cmd-2',
+    });
+    const currentReport = reducer.applyEvent(
+      lockId,
+      'locked',
+      true,
+      0,
+      500,
+      'new-command-report',
+    );
+    expect(currentReport.state.requested.locked).toBeUndefined();
+  });
+
   it('marks an unconfirmed command unresolved and current state unknown', () => {
     const reducer = baseline();
     reducer.recordRequested(lockId, 'locked', false, 'cmd-1', 200);

@@ -12,6 +12,7 @@ Evidence was collected from the prior research worktree at `ef502b2d1d1ca7e71bf8
 - Attribute write: PATCH that device path with `{attributes:[{name,state}]}`. The old implementation sends lock `locked` and thermostat mode/setpoint/fan attributes.
 - Phoenix subscription topic: `devices:{deviceId}`, joined with `phx_join`. Device events include attribute name, `last_read_state`, and `last_read_state_changed_at`.
 - Existing model fields include numeric `id`, `online`, `attributes`, timestamps, and battery fields. Observed thermostat attributes include mode, operating state, current temperature/humidity, heat/cool setpoints, and fan mode. Leak is represented by a `leak` attribute.
+- The reviewed thermostat implementation names these fields `mode`, `operating_state`, `current_temp`, `current_humidity`, `heating_setpoint`, `cooling_setpoint`, and `fan_mode`. It converts SmartRent temperatures from Fahrenheit for HomeKit, writes setpoints as string Fahrenheit values, and selects `cooling_setpoint` only when reported mode is `cool`; other modes select `heating_setpoint`.
 - Reviewed HTTP timeout is 10 seconds; WebSocket open timeout is 30 seconds; old client sends Phoenix heartbeat every 30 seconds and reconnects after close/error with capped exponential backoff.
 
 ## INFERRED
@@ -19,6 +20,7 @@ Evidence was collected from the prior research worktree at `ef502b2d1d1ca7e71bf8
 - The auth responses are JWT-like bearer tokens because the reviewed client decodes `exp` and a user subject. The code does not show a vendor-published token contract.
 - WebSocket attribute events are intended as live reported device state. A PATCH response is not proof of physical completion.
 - A configured TOTP seed allows noninteractive second factor in the plugin; the exact SmartRent MFA policy may vary by account.
+- The reviewed plugin describes 50–90°F as the SmartRent setpoint range. The new implementation rejects values outside it rather than clamping. This range and the old mapping of `auto`/`off` to heating setpoint are inherited evidence, not a vendor guarantee for this installation.
 - The two experimental lock fixes are useful behavior evidence: unavailable state maps to HAP `UNKNOWN`; an acknowledged channel rejoin triggers one bounded state read with generation fencing.
 
 ## UNKNOWN
@@ -33,9 +35,8 @@ Evidence was collected from the prior research worktree at `ef502b2d1d1ca7e71bf8
 
 ## Existing-source references
 
-- [Authentication](</home/ludwin/src/homebridge-smartrent-research/src/lib/auth.ts>)
-- [Endpoints and WebSocket client](</home/ludwin/src/homebridge-smartrent-research/src/lib/request.ts>)
-- [REST API wrapper](</home/ludwin/src/homebridge-smartrent-research/src/lib/api.ts>)
-- [Phoenix client](</home/ludwin/src/homebridge-smartrent-research/src/lib/client.ts>)
-- [Device schema](</home/ludwin/src/homebridge-smartrent-research/src/devices/base.ts>)
-
+- [Authentication](/home/ludwin/src/homebridge-smartrent-research/src/lib/auth.ts)
+- [Endpoints and WebSocket client](/home/ludwin/src/homebridge-smartrent-research/src/lib/request.ts)
+- [REST API wrapper](/home/ludwin/src/homebridge-smartrent-research/src/lib/api.ts)
+- [Phoenix client](/home/ludwin/src/homebridge-smartrent-research/src/lib/client.ts)
+- [Device schema](/home/ludwin/src/homebridge-smartrent-research/src/devices/base.ts)

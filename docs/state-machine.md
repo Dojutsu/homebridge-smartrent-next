@@ -25,6 +25,8 @@ The supervisor waits for channel-join acknowledgements before its one-per-device
 
 Record a command target with a new command generation. Send one write. HTTP success records acceptance only. A matching authoritative report resolves the pending command. A contradictory report becomes the current reported state and is logged as a conflict. A timeout is ambiguous and leaves current state unknown/unresolved. No command is automatically retried.
 
+A mismatching report does not clear a newer requested target; this prevents a delayed response to an earlier thermostat or lock command from appearing to resolve the latest request. Matching boolean/string and numeric/string encodings are treated as equivalent only when their values are exactly canonical equivalents.
+
 ## Lock truth table
 
 | SmartRent observation                           | HAP CurrentLockState |

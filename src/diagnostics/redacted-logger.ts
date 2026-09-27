@@ -36,6 +36,29 @@ export interface SensorDiagnostic {
   reported: 'LEAK' | 'DRY' | 'UNKNOWN';
 }
 
+export interface ThermostatDiagnostic {
+  event:
+    | 'APPLE_REQUESTED'
+    | 'SMARTRENT_ACCEPTED'
+    | 'SMARTRENT_REPORTED'
+    | 'HAP_CURRENT_UPDATED'
+    | 'UNKNOWN';
+  alias: string;
+  generation: number;
+  connectionEpoch: number;
+  field:
+    | 'mode'
+    | 'operatingState'
+    | 'currentTemperature'
+    | 'targetTemperature'
+    | 'heatingSetpoint'
+    | 'coolingSetpoint'
+    | 'humidity';
+  source?: StateSource;
+  ageMs?: number;
+  value?: string | number;
+}
+
 export class RedactedDiagnosticLogger {
   constructor(private readonly logger: Pick<Logging, 'info' | 'warn'>) {}
 
@@ -78,6 +101,30 @@ export class RedactedDiagnosticLogger {
       safe.ageMs = Math.max(0, Math.floor(record.ageMs));
     const line = JSON.stringify(safe);
     if (record.event === 'SENSOR_UNKNOWN')
+      this.logger.warn('[SmartRentNext] %s', line);
+    else this.logger.info('[SmartRentNext] %s', line);
+  }
+
+  thermostat(record: ThermostatDiagnostic): void {
+    const safe: Record<string, string | number> = {
+      event: record.event,
+      alias: safeAlias(record.alias),
+      generation: safeCounter(record.generation),
+      connectionEpoch: safeCounter(record.connectionEpoch),
+      field: record.field,
+    };
+    if (record.source) safe.source = record.source;
+    if (record.ageMs !== undefined && Number.isFinite(record.ageMs))
+      safe.ageMs = Math.max(0, Math.floor(record.ageMs));
+    if (typeof record.value === 'number' && Number.isFinite(record.value))
+      safe.value = record.value;
+    if (
+      typeof record.value === 'string' &&
+      /^[a-z0-9_.-]{1,32}$/i.test(record.value)
+    )
+      safe.value = record.value;
+    const line = JSON.stringify(safe);
+    if (record.event === 'UNKNOWN')
       this.logger.warn('[SmartRentNext] %s', line);
     else this.logger.info('[SmartRentNext] %s', line);
   }

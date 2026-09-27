@@ -200,9 +200,19 @@ export class StateReducer {
         freshness: value === null || value === undefined ? 'unknown' : 'fresh',
       };
     }
+    const requested = { ...prior.requested };
+    for (const [name, pending] of Object.entries(requested)) {
+      if (
+        name in snapshot.attributes &&
+        valuesMatch(pending.value, snapshot.attributes[name])
+      ) {
+        delete requested[name];
+      }
+    }
     const state: DeviceState = {
       ...prior,
       attributes,
+      requested,
       online: snapshot.online === true ? 'online' : 'unknown',
       fault: snapshot.online === true ? undefined : 'unavailable',
       connectionEpoch: this.epoch,
@@ -269,7 +279,8 @@ export class StateReducer {
     };
     const requested = { ...prior.requested };
     const pending = requested[attribute];
-    if (pending) delete requested[attribute];
+    if (pending && valuesMatch(pending.value, value))
+      delete requested[attribute];
     const state: DeviceState = {
       ...prior,
       attributes: { ...prior.attributes, [attribute]: observation },
@@ -504,6 +515,27 @@ export class StateReducer {
     seen.add(eventId);
     if (seen.size > 512) seen.delete(seen.values().next().value as string);
   }
+}
+
+function valuesMatch(requested: unknown, reported: unknown): boolean {
+  if (Object.is(requested, reported)) return true;
+  if (
+    (typeof requested === 'boolean' || typeof requested === 'string') &&
+    (typeof reported === 'boolean' || typeof reported === 'string')
+  ) {
+    return String(requested) === String(reported);
+  }
+  if (
+    (typeof requested === 'number' && typeof reported === 'string') ||
+    (typeof requested === 'string' && typeof reported === 'number')
+  ) {
+    const requestedNumber = Number(requested);
+    const reportedNumber = Number(reported);
+    return (
+      Number.isFinite(requestedNumber) && requestedNumber === reportedNumber
+    );
+  }
+  return false;
 }
 
 export function readAuthoritativeAttribute(

@@ -9,7 +9,9 @@ export type DiagnosticEventName =
   | 'HAP_CURRENT_UPDATED'
   | 'UNKNOWN'
   | 'OFFLINE'
-  | 'JAMMED';
+  | 'JAMMED'
+  | 'SENSOR_REPORTED'
+  | 'SENSOR_UNKNOWN';
 
 export interface LockDiagnostic {
   event: DiagnosticEventName;
@@ -22,6 +24,16 @@ export interface LockDiagnostic {
   reported?: LockStateLabel;
   current?: LockStateLabel;
   transition?: string;
+}
+
+export interface SensorDiagnostic {
+  event: 'SENSOR_REPORTED' | 'SENSOR_UNKNOWN';
+  alias: string;
+  generation: number;
+  connectionEpoch: number;
+  source?: StateSource;
+  ageMs?: number;
+  reported: 'LEAK' | 'DRY' | 'UNKNOWN';
 }
 
 export class RedactedDiagnosticLogger {
@@ -51,6 +63,23 @@ export class RedactedDiagnosticLogger {
     } else {
       this.logger.info('[SmartRentNext] %s', line);
     }
+  }
+
+  sensor(record: SensorDiagnostic): void {
+    const safe: Record<string, string | number> = {
+      event: record.event,
+      alias: safeAlias(record.alias),
+      generation: safeCounter(record.generation),
+      connectionEpoch: safeCounter(record.connectionEpoch),
+      reported: record.reported,
+    };
+    if (record.source) safe.source = record.source;
+    if (record.ageMs !== undefined && Number.isFinite(record.ageMs))
+      safe.ageMs = Math.max(0, Math.floor(record.ageMs));
+    const line = JSON.stringify(safe);
+    if (record.event === 'SENSOR_UNKNOWN')
+      this.logger.warn('[SmartRentNext] %s', line);
+    else this.logger.info('[SmartRentNext] %s', line);
   }
 }
 

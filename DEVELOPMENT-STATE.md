@@ -18,6 +18,7 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Repository: `Dojutsu/homebridge-smartrent-next`, with the original project foundation at `4174b86e81e6cfb0b114989f24a51a660bb603c1`. The initial Node 20/22/24 CI run passed formatting, ESLint, type-check, 65 unit tests, 8 fake-server integration tests, and build.
 - Packaging correction `5651716c96df954039f4ea117f219e02f76c201e` passed GitHub Actions on Node 20/22/24, including formatting, ESLint, type-check, tests, build, and package/load smoke ([run 36343841214](https://github.com/Dojutsu/homebridge-smartrent-next/actions/runs/36343841214)).
 - Discovery-only implementation passes local formatting, ESLint, type-check, 78 unit tests, 11 loopback integration tests, build, package/load smoke, and `git diff --check`. It has not been run against SmartRent. GitHub Actions on Node 20/22/24 must pass for its exact commit before any real-account authentication.
+- Two real discovery-only attempts stopped during authentication with HTTP 422 after the validator printed its mode/HomeKit lines but before authentication-success output. Control flow narrows the failed operation to login or TFA, but the prior diagnostics cannot distinguish them. Stop further authentication attempts until safe request diagnostics pass CI.
 - `npm run validate:account` was run as a preflight only and stopped before authentication because the runtime environment did not contain `SMARTRENT_VALIDATION_MODE` or account/device mapping variables. No authentication or SmartRent request has been attempted.
 
 ## Open gates
@@ -26,5 +27,5 @@ Homebridge dynamic platform, intended for an independent child bridge, supportin
 - Validate Apple Home's presentation of HAP `UNKNOWN`, offline faults, and leak/battery read failures on test accessories before a production migration.
 - Rehearse HomeKit identity continuity using cloned Homebridge storage before considering any migration.
 - Test Apple Watch Siri locally, remotely through the home hub, after restart/reconnect, and during a multi-day soak before any release recommendation.
-- Push the focused discovery-only commit and manually dispatch CI for `codex/read-only-account-validation`; the workflow's push filter targets `main`.
-- Do not authenticate until that exact commit passes all Node 20/22/24 jobs and a later live-validation step is explicitly requested. Discovery mode needs credentials only; role IDs are required only for a later `READ_ONLY` run after candidate confirmation.
+- Push the focused safe-diagnostics/auth-header commit and manually dispatch CI for `codex/read-only-account-validation`; the workflow's push filter targets `main`.
+- Do not authenticate again until that exact commit passes all Node 20/22/24 jobs and a later single attempt is explicitly requested. Discovery mode needs credentials only; role IDs are required only for a later `READ_ONLY` run after candidate confirmation.

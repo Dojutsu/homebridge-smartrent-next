@@ -26,6 +26,8 @@ Inventory rows use temporary `Candidate N` positions, not SmartRent IDs. Generic
 
 `DISCOVERY_ONLY` is a transport mode, not just a validator convention. The transport permits state-changing methods only in explicit `READ_WRITE` mode. Both `DISCOVERY_ONLY` and `READ_ONLY` reject every guarded write before authentication or network access; the authenticated-write boundary repeats the guard.
 
+On an HTTP failure, the standalone command prints the fixed operation name, method, route template, request schema field names, status, allowlisted response field names, recognized validation field names, and a static safe error category. Dynamic hub/device IDs are replaced with placeholders. Error codes/messages are emitted only on exact allowlist matches. It never prints request or response values, raw bodies, tokens, cookies, or query strings; unknown error details remain suppressed.
+
 ## Mapping after candidate confirmation
 
 Do not map a role based only on a candidate's position or display name. After the owner confirms which candidates are the Front Door, thermostat, washer leak sensor, and kitchen leak sensor, a future validator revision can read a local-only mapping file outside the repository, for example `~/.config/homebridge-smartrent-next/validation-map.json`, owned by the validation user with mode `0600`. It would contain only alias-to-device-ID mappings, not credentials. The validator should validate unique IDs and expected device types, then keep IDs in memory and never print them. This local mapping mechanism is a design proposal only; it is not implemented by discovery mode.

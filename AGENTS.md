@@ -15,6 +15,7 @@
 - Real-account protocol validation requires explicit approval and the standalone `npm run validate:account` command; provide secrets only through runtime environment injection, never command arguments or files.
 - The account validator must accept only explicit `DISCOVERY_ONLY` or `READ_ONLY` modes and must not import Homebridge or advertise a HomeKit bridge. Discovery-only mode requires no device IDs and must stop after sanitized device enumeration without device-state reads or WebSocket connections.
 - Every state-changing transport method must be rejected centrally unless the transport was explicitly constructed in `READ_WRITE` mode. Both account-validation modes remain read-only.
+- HTTP failure diagnostics may print only fixed operation names, HTTP method/status, allowlisted path templates/field names, and exact allowlisted generic error labels. Never print request/response values, raw bodies, cookies, tokens, or dynamic ID path segments.
 - Keep the transport's default mode `READ_ONLY`; any test that exercises state-changing methods must opt into `READ_WRITE` explicitly and use only synthetic fixtures.
 - Never weaken or bypass the read-only transport guard during account validation. TOTP codes may exist only in memory and all credentials, tokens, device IDs, account data, and raw payloads remain redacted.
 - Preserve deterministic accessory UUIDs, bridge pairing persistence, and service/subtype layout. Identity changes require explicit documentation and migration tests.

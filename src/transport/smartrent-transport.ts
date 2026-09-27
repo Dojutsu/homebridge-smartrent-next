@@ -4,11 +4,13 @@ import {
   type PhoenixProtocolObservation,
   type SocketFactory,
 } from './phoenix-socket.js';
+import { SmartRentReadOnlyError, SmartRentTransportError } from './errors.js';
 import {
-  SmartRentReadOnlyError,
-  SmartRentTransportError,
-  statusError,
-} from './errors.js';
+  parseResponseForDiagnostics,
+  sanitizeHttpFailure,
+  type HttpFailureContext,
+  type SmartRentHttpOperation,
+} from './http-diagnostics.js';
 import type {
   ConnectionChange,
   CredentialsProvider,
@@ -22,6 +24,16 @@ import type {
 
 type Fetcher = typeof fetch;
 type JsonObject = Record<string, unknown>;
+
+const AUTH_CLIENT_HEADERS = {
+  connection: 'keep-alive',
+  'user-agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15',
+  'accept-language': 'en-US;q=1.0',
+  'accept-encoding': 'gzip;q=1.0, compress;q=0.5',
+  accept: '*/*',
+};
+const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=utf-8';
 
 export interface SmartRentProtocolOptions {
   credentials: CredentialsProvider;
@@ -231,11 +243,16 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       {
         method: 'POST',
         headers: {
-          'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+          ...AUTH_CLIENT_HEADERS,
+          'content-type': FORM_CONTENT_TYPE,
         },
         body: form,
       },
-      'POST',
+      {
+        operation: 'AUTH_TFA',
+        method: 'POST',
+        requestFields: ['tfa_api_token', 'token'],
+      },
     );
     const token =
       isObject(data) && isObject(data.data)
@@ -257,7 +274,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
   }
 
   async discoverDevices(): Promise<SmartRentDevice[]> {
-    const unitsResponse = await this.getJson('/units');
+    const unitsResponse = await this.getJson('/units', 'UNIT_DISCOVERY');
     const unitRecordsPath =
       isObject(unitsResponse) && Array.isArray(unitsResponse.records)
         ? 'records'
@@ -288,6 +305,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       if (!hubId) continue;
       const list = await this.getJson(
         `/hubs/${encodeURIComponent(hubId)}/devices`,
+        'DEVICE_DISCOVERY',
       );
       const deviceRecordsPath = Array.isArray(list) ? 'array' : 'data';
       const deviceRecords = Array.isArray(list)
@@ -319,6 +337,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       throw new SmartRentTransportError('Unknown SmartRent device ID');
     const result = await this.getJson(
       `/hubs/${encodeURIComponent(hubId)}/devices/${encodeURIComponent(deviceId)}`,
+      'DEVICE_STATE',
     );
     return normalizeDevice(
       isObject(result) && 'data' in result ? result.data : result,
@@ -348,6 +367,11 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
     await this.authenticatedWrite(
       `${this.apiBaseUrl}/hubs/${encodeURIComponent(hubId)}/devices/${encodeURIComponent(deviceId)}`,
       body,
+      {
+        operation: 'DEVICE_ATTRIBUTE_WRITE',
+        method: 'PATCH',
+        requestFields: ['attributes'],
+      },
     );
     return { accepted: true };
   }
@@ -357,12 +381,20 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
     const tokenUrl = `${this.authBaseUrl}/api/v1/authentication/websocket-token`;
     let response: Response;
     try {
-      response = await this.authRequest(tokenUrl, 'POST');
+      response = await this.authRequest(tokenUrl, {
+        operation: 'WEBSOCKET_TOKEN',
+        method: 'POST',
+        requestFields: [],
+      });
     } catch (error) {
       if (!(error instanceof SmartRentTransportError) || error.status !== 401)
         throw error;
       await this.refreshOrReauthenticate();
-      response = await this.authRequest(tokenUrl, 'POST');
+      response = await this.authRequest(tokenUrl, {
+        operation: 'WEBSOCKET_TOKEN',
+        method: 'POST',
+        requestFields: [],
+      });
     }
     const data: unknown = await response.json();
     const token =
@@ -415,11 +447,16 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       {
         method: 'POST',
         headers: {
-          'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+          ...AUTH_CLIENT_HEADERS,
+          'content-type': FORM_CONTENT_TYPE,
         },
         body: form,
       },
-      'POST',
+      {
+        operation: 'AUTH_LOGIN',
+        method: 'POST',
+        requestFields: ['email', 'password'],
+      },
     );
     const sessionData =
       isObject(data) && isObject(data.data) ? data.data : undefined;
@@ -488,31 +525,45 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       throw new SmartRentTransportError('SmartRent authentication failed');
   }
 
-  private async getJson(path: string): Promise<unknown> {
-    const response = await this.authRequest(`${this.apiBaseUrl}${path}`, 'GET');
+  private async getJson(
+    path: string,
+    operation: SmartRentHttpOperation,
+  ): Promise<unknown> {
+    const response = await this.authRequest(`${this.apiBaseUrl}${path}`, {
+      operation,
+      method: 'GET',
+      requestFields: [],
+      retryableRead: true,
+    });
     return response.json() as Promise<unknown>;
   }
 
   private async authRequest(
     url: string,
-    method: 'GET' | 'POST',
+    context: HttpFailureContext,
   ): Promise<Response> {
     await this.ensureAuthenticated();
-    const send = () =>
-      this.fetcher(url, {
-        method,
-        headers: { authorization: `Bearer ${this.accessToken}` },
+    const send = () => {
+      const authorization = `Bearer ${this.accessToken}`;
+      const headers =
+        context.operation === 'WEBSOCKET_TOKEN'
+          ? { ...AUTH_CLIENT_HEADERS, authorization }
+          : { authorization };
+      return this.fetcher(url, {
+        method: context.method,
+        headers,
         signal: AbortSignal.timeout(this.timeoutMs),
       });
+    };
     let response: Response;
     try {
       response = await send();
     } catch {
       throw new SmartRentTransportError(
-        `SmartRent ${method} request failed or timed out`,
+        `SmartRent ${context.method} request failed or timed out`,
       );
     }
-    if (response.status === 401 && method === 'GET') {
+    if (response.status === 401 && context.method === 'GET') {
       await this.refreshOrReauthenticate();
       try {
         response = await send();
@@ -522,11 +573,15 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
         );
       }
     }
-    if (!response.ok) throw statusError(response.status, method);
+    if (!response.ok) throw await this.httpStatusError(response, context);
     return response;
   }
 
-  private async authenticatedWrite(url: string, body: unknown): Promise<void> {
+  private async authenticatedWrite(
+    url: string,
+    body: unknown,
+    context: HttpFailureContext,
+  ): Promise<void> {
     this.assertWriteAllowed();
     await this.ensureAuthenticated();
     let response: Response;
@@ -545,7 +600,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
         'SmartRent PATCH request failed or timed out',
       );
     }
-    if (!response.ok) throw statusError(response.status, 'PATCH');
+    if (!response.ok) throw await this.httpStatusError(response, context);
   }
 
   private assertWriteAllowed(): void {
@@ -563,7 +618,7 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
   private async requestJson(
     url: string,
     init: RequestInit,
-    method: string,
+    context: HttpFailureContext,
   ): Promise<unknown> {
     let response: Response;
     try {
@@ -573,16 +628,39 @@ export class SmartRentProtocolTransport implements SmartRentTransport {
       });
     } catch {
       throw new SmartRentTransportError(
-        `SmartRent ${method} request failed or timed out`,
+        `SmartRent ${context.method} request failed or timed out`,
       );
     }
-    if (!response.ok) throw statusError(response.status, method);
+    if (!response.ok) throw await this.httpStatusError(response, context);
     try {
       return (await response.json()) as unknown;
     } catch {
       throw new SmartRentTransportError(
-        `SmartRent ${method} response was not valid JSON`,
+        `SmartRent ${context.method} response was not valid JSON`,
       );
     }
+  }
+
+  private async httpStatusError(
+    response: Response,
+    context: HttpFailureContext,
+  ): Promise<SmartRentTransportError> {
+    let responseBody: unknown;
+    try {
+      responseBody = parseResponseForDiagnostics(await response.text());
+    } catch {
+      responseBody = undefined;
+    }
+    const diagnostic = sanitizeHttpFailure(
+      responseBody,
+      response.status,
+      context,
+    );
+    return new SmartRentTransportError(
+      `SmartRent ${context.method} failed with HTTP ${response.status}`,
+      response.status,
+      context.retryableRead ?? false,
+      diagnostic,
+    );
   }
 }

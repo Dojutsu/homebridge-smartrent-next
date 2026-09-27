@@ -1,8 +1,11 @@
+import type { SafeHttpDiagnostic } from './http-diagnostics.js';
+
 export class SmartRentTransportError extends Error {
   constructor(
     message: string,
     readonly status?: number,
     readonly retryableRead = false,
+    readonly diagnostic?: SafeHttpDiagnostic,
   ) {
     super(message);
     this.name = 'SmartRentTransportError';

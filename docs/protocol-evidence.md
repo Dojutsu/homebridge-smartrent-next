@@ -33,6 +33,36 @@ Evidence was collected from the prior research worktree at `ef502b2d1d1ca7e71bf8
 - Exact payloads for this installation's jammed, battery, leak, HVAC, and offline states.
 - Thermostat ranges, auto-mode target semantics, and whether every PATCH is a partial attribute update at the service boundary.
 
+## Authentication request comparison
+
+### VERIFIED FROM v2.0.0 source
+
+- `@jackietreeh0rn/homebridge-smartrent` v2.0.0 creates an Axios auth client with base URL `https://control.smartrent.com` and POSTs `/authentication/sessions` with form fields `email` and `password`.
+- The old client sets `Content-Type: application/x-www-form-urlencoded; charset=utf-8`. Its auth headers also include `Accept: */*`, a Safari 18.3 user-agent string, `Accept-Language: en-US;q=1.0`, `Accept-Encoding: gzip;q=1.0, compress;q=0.5`, and `Connection: keep-alive`.
+- The old client does not add `X-AppVersion` to the auth request. That header exists on its separate `/api/v3` API client. No explicit cookie jar or auth-cookie handling was found in the reviewed path; successful session tokens are kept in its local session file.
+- A successful initial response containing `data.tfa_api_token` triggers a TOTP generated in memory, followed by POST `/authentication/sessions/tfa` with form fields `tfa_api_token` and `token`, using the same auth headers/content type. An initial response with `data.access_token` skips TFA.
+- The old WebSocket-token request is POST `/api/v1/authentication/websocket-token` with the bearer access token and the auth-client headers; it has no application form fields.
+
+### VERIFIED FROM next-client source
+
+- The next client uses the same auth base URL, endpoints, POST methods, form content type, and field names. It sends TOTP only after receiving the expected `data.tfa_api_token` challenge; the initial request contains only `email` and `password`.
+- Before the request-shape correction, the next client omitted the old auth client's `User-Agent`, `Accept`, `Accept-Language`, `Accept-Encoding`, and `Connection` headers. The current implementation mirrors those old auth headers on login, TFA, and WebSocket-token requests. It still does not add `X-AppVersion` to auth calls.
+- The next client uses `URLSearchParams` for the form bodies, retains tokens in process memory, and does not use cookies or persist an auth session.
+
+### INFERRED
+
+- The omitted legacy auth headers are a concrete request-metadata difference and a plausible contributor to the observed HTTP 422 because the old implementation is known to work with this account. The source does not prove that SmartRent requires any particular one of those headers.
+
+### UNKNOWN
+
+- The two earlier sanitized failures occurred before the validator printed authentication success, so source/control flow narrows the failed operation to `AUTH_LOGIN` or `AUTH_TFA`; the old output cannot distinguish which one returned 422.
+- The safe response body and validation field names from those requests were not captured. No request should be repeated until the diagnostic change passes CI.
+- Whether SmartRent requires the legacy client headers or emits a specific 422 validation error remains unknown until a single post-CI read-only attempt.
+
+## Safe HTTP failure diagnostics
+
+The validator attaches a fixed operation name, method, templated path, schema field names, status, recognized response field names, allowlisted validation field names, and a static safe error category to HTTP failures. It never stores raw request/response text in the error. Dynamic unit/hub/device path segments are replaced with placeholders. Error messages and codes are exposed only when they exactly match a small allowlist; other values and unknown response structures remain suppressed.
+
 ## Existing-source references
 
 - [Authentication](/home/ludwin/src/homebridge-smartrent-research/src/lib/auth.ts)
